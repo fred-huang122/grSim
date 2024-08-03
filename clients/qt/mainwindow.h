@@ -14,6 +14,7 @@
 #include "grSim_Packet.pb.h"
 #include "grSim_Commands.pb.h"
 #include "grSim_Replacement.pb.h"
+#include "ssl_simulation_robot_control.pb.h"
 
 
 class MainWindow : public QDialog
@@ -39,16 +40,16 @@ private:
     QLineEdit* edtId;
     QLineEdit* edtVx, *edtVy, *edtW;
     QLineEdit* edtV1, *edtV2, *edtV3, *edtV4;
-    QLineEdit* edtKick, *edtChip;
+    QLineEdit* edtKick, *edtChip, *edtSpin;
     QLabel* lblIp;
     QLabel* lblPort;
     QLabel* lblId;
     QComboBox* cmbTeam;
     QLabel* lblVx, *lblVy, *lblW;
     QLabel* lblV1, *lblV2, *lblV3, *lblV4;
-    QLabel* lblKick, *lblChip;
+    QLabel* lblKick, *lblChip, *lblSpin;
     QTextEdit* txtInfo;
-    QCheckBox* chkVel, *chkSpin;
+    QCheckBox* chkVel;
     QPushButton* btnSend;
     QPushButton* btnReset;
     QPushButton* btnConnect;

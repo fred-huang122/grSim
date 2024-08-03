@@ -2,6 +2,9 @@
 #include <QGridLayout>
 #include <QDebug>
 #include <QMessageBox>
+#include <iostream>
+
+using namespace std;
 
 MainWindow::MainWindow(QWidget *parent)
     : QDialog(parent),
@@ -20,6 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
     edtV4 = new QLineEdit("0", this);
     edtChip = new QLineEdit("0", this);
     edtKick = new QLineEdit("0", this);
+    edtSpin = new QLineEdit("0", this);
 
     this->setWindowTitle(QString("grSim Sample Client - v 2.0"));
 
@@ -36,11 +40,11 @@ MainWindow::MainWindow(QWidget *parent)
     cmbTeam = new QComboBox(this);
     cmbTeam->addItem("Yellow");
     cmbTeam->addItem("Blue");
-    lblChip = new QLabel("Chip (m/s)", this);
+    lblChip = new QLabel("Kick Angle (deg)", this);
     lblKick = new QLabel("Kick (m/s)", this);
+    lblSpin = new QLabel("Dribbler speed (rpm)", this);
     txtInfo = new QTextEdit(this);
     chkVel = new QCheckBox("Send Velocity? (or wheels)", this);
-    chkSpin = new QCheckBox("Spin", this);
     btnSend = new QPushButton("Send", this);
     btnReset = new QPushButton("Reset", this);
     btnConnect = new QPushButton("Connect", this);
@@ -60,7 +64,7 @@ MainWindow::MainWindow(QWidget *parent)
     layout->addWidget(lblV4, 6, 3, 1, 1);layout->addWidget(edtV4, 6, 4, 1, 1);
     layout->addWidget(lblChip, 7, 1, 1, 1);layout->addWidget(edtChip, 7, 2, 1, 1);
     layout->addWidget(lblKick, 7, 3, 1, 1);layout->addWidget(edtKick, 7, 4, 1, 1);
-    layout->addWidget(chkSpin, 8, 1, 1, 4);
+    layout->addWidget(lblSpin, 8, 1, 1, 1);layout->addWidget(edtSpin, 8, 2, 1, 1);
     layout->addWidget(btnConnect, 9, 1, 1, 2);layout->addWidget(btnSend, 9, 3, 1, 1);layout->addWidget(btnReset, 9, 4, 1, 1);
     layout->addWidget(txtInfo, 10, 1, 1, 4);
     timer = new QTimer (this);
@@ -116,8 +120,8 @@ void MainWindow::resetBtnClicked()
     edtV4->setText("0");
     edtChip->setText("0");
     edtKick->setText("0");
+    edtSpin->setText("0");
     chkVel->setChecked(true);
-    chkSpin->setChecked(false);
 }
 
 
@@ -135,29 +139,44 @@ void MainWindow::sendPacket()
         sendBtnClicked();
         reseting = false;
     }
-    grSim_Packet packet;
-    bool yellow = false;
-    if (cmbTeam->currentText()=="Yellow") yellow = true;
-    packet.mutable_commands()->set_isteamyellow(yellow);
-    packet.mutable_commands()->set_timestamp(0.0);
-    grSim_Robot_Command* command = packet.mutable_commands()->add_robot_commands();
+    // grSim_Packet packet;
+    // bool yellow = false;
+    // if (cmbTeam->currentText()=="Yellow") yellow = true;
+    // packet.mutable_commands()->set_isteamyellow(yellow);
+    // packet.mutable_commands()->set_timestamp(0.0);
+
+    RobotControl robot_control_packet;
+
+    RobotCommand* command = robot_control_packet.add_robot_commands();
     command->set_id(edtId->text().toInt());
+    
+    command->set_kick_speed(edtKick->text().toDouble());
+    command->set_kick_angle(edtChip->text().toDouble());
+    command->set_dribbler_speed(edtSpin->text().toDouble());
 
-    command->set_wheelsspeed(!chkVel->isChecked());
-    command->set_wheel1(edtV1->text().toDouble());
-    command->set_wheel2(edtV2->text().toDouble());
-    command->set_wheel3(edtV3->text().toDouble());
-    command->set_wheel4(edtV4->text().toDouble());
-    command->set_veltangent(edtVx->text().toDouble());
-    command->set_velnormal(edtVy->text().toDouble());
-    command->set_velangular(edtW->text().toDouble());
+    // RobotCommand* command2 = robot_control_packet.add_robot_commands();
+    // command2->set_id(edtId->text().toInt() + 1);
 
-    command->set_kickspeedx(edtKick->text().toDouble());
-    command->set_kickspeedz(edtChip->text().toDouble());
-    command->set_spinner(chkSpin->isChecked());
+    RobotMoveCommand* move_command = command->mutable_move_command();
+
+    MoveGlobalVelocity* move_global_velocity = move_command->mutable_global_velocity();
+
+    // move_command->set_wheelsspeed(!chkVel->isChecked());
+    // move_command->set_wheel1(edtV1->text().toDouble());
+    // move_command->set_wheel2(edtV2->text().toDouble());
+    // move_command->set_wheel3(edtV3->text().toDouble());
+    // move_command->set_wheel4(edtV4->text().toDouble());
+    move_global_velocity->set_x(edtVx->text().toDouble());
+    move_global_velocity->set_y(edtVy->text().toDouble());
+    move_global_velocity->set_angular(edtW->text().toDouble());
+    
+    for (int i = 0; i < robot_control_packet.robot_commands_size(); ++i) {
+        const RobotCommand& command = robot_control_packet.robot_commands(i);
+        cout << "Robot Id " << i + 1 << ": " << command.id() << endl;
+    }
 
     QByteArray dgram;
-    dgram.resize(packet.ByteSize());
-    packet.SerializeToArray(dgram.data(), dgram.size());
+    dgram.resize(robot_control_packet.ByteSize());
+    robot_control_packet.SerializeToArray(dgram.data(), dgram.size());
     udpsocket.writeDatagram(dgram, _addr, _port);
 }

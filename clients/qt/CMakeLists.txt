@@ -33,6 +33,7 @@ protobuf_generate_cpp(PROTO_CPP PROTO_H
     ../../src/proto/grSim_Replacement.proto
     ../../src/proto/grSim_Commands.proto
     ../../src/proto/grSim_Packet.proto
+    ../../src/proto/ssl_simulation_robot_control.proto
 )
 
 set(app client)
