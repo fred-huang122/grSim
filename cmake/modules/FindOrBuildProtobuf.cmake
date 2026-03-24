@@ -4,6 +4,13 @@ sanitize_env()
 find_package(Protobuf 3.3.0)
 restore_env()
 
+# Newer CMake rewrites this target dependency incorrectly in subdirectories.
+if(Protobuf_PROTOC_EXECUTABLE)
+  set(protobuf_generate_DEPENDENCIES "${Protobuf_PROTOC_EXECUTABLE}" CACHE STRING "" FORCE)
+else()
+  unset(protobuf_generate_DEPENDENCIES CACHE)
+endif()
+
 # protobuf versions >= 3.21 are incompatible with how the project is setup and cause weird errors
 # so we build protobuf ourselves
 if(NOT Protobuf_FOUND OR Protobuf_VERSION VERSION_GREATER_EQUAL 3.21)

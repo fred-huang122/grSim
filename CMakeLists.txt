@@ -117,6 +117,7 @@ if(NOT VARTYPES_FOUND)
   ExternalProject_Add(vartypes_external
     GIT_REPOSITORY    https://github.com/jpfeltracco/vartypes
     GIT_TAG           origin/jpfeltracco/build_static
+    UPDATE_DISCONNECTED TRUE
     CMAKE_ARGS        "${VARTYPES_CMAKE_ARGS}"
     STEP_TARGETS install
   )

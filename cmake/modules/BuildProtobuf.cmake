@@ -70,9 +70,9 @@ set(Protobuf_LITE_LIBRARY_RELEASE "${install_dir}/${PROTOBUF_SUBPATH}" CACHE PAT
 set(Protobuf_PROTOC_EXECUTABLE "${install_dir}/${PROTOC_SUBPATH}" CACHE PATH "" FORCE)
 set(Protobuf_PROTOC_LIBRARY_DEBUG "${install_dir}/${LIBPROTOC_SUBPATH}" CACHE PATH "" FORCE)
 set(Protobuf_PROTOC_LIBRARY_RELEASE "${install_dir}/${LIBPROTOC_SUBPATH}" CACHE PATH "" FORCE)
-# this is a dependency for the protobuf_generate_cpp custom command
-# if this is not set the generate command sometimes get executed before protoc is compiled
-set(protobuf_generate_DEPENDENCIES protobuf_external CACHE STRING "" FORCE)
+# Newer CMake rewrites this target dependency incorrectly in subdirectories.
+# Use the generated protoc path instead.
+set(protobuf_generate_DEPENDENCIES "${Protobuf_PROTOC_EXECUTABLE}" CACHE STRING "" FORCE)
 
 # compatibility with cmake 3.10
 if(NOT TARGET protobuf::protoc)
