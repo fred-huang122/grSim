@@ -346,17 +346,18 @@ void GLWidget::step()
     const dReal* ballV = dBodyGetLinearVel(ssl->ball->body);
     double ballSpeed = ballV[0]*ballV[0] + ballV[1]*ballV[1] + ballV[2]*ballV[2];
     ballSpeed  = sqrt(ballSpeed);
-    rendertimer.restart();
+    const int elapsed_ms = rendertimer.restart();
     m_fps = frames /(time.elapsed()/1000.0);
     if (!(frames % ((int)(ceil(cfg->DesiredFPS()))))) {
         time.restart();
         frames = 0;
     }
-    if (first_time) {ssl->step();first_time = false;}
+    if (first_time) {ssl->step(cfg->DeltaTime());first_time = false;}
     else {
         if (cfg->SyncWithGL())
         {
-            dReal ddt=rendertimer.elapsed()/1000.0;
+            dReal ddt = elapsed_ms / 1000.0;
+            if (ddt <= 0) ddt = cfg->DeltaTime();
             if (ddt>0.05) ddt=0.05;
             ssl->step(ddt);
         }

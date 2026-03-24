@@ -141,7 +141,7 @@ SSLWorld::SSLWorld(QGLWidget* parent, ConfigWidget* _cfg, RobotsFormation *form1
     show3DCursor = false;
     updatedCursor = false;
     frame_num = 0;
-    last_dt = -1;    
+    last_dt = cfg->DeltaTime();
     g = new CGraphics(parent);
     g->setSphereQuality(1);
     g->setViewpoint(0,-(cfg->Field_Width()+cfg->Field_Margin()*2.0f)/2.0f,3,90,-45,0);
@@ -412,6 +412,8 @@ void SSLWorld::glinit() {
 
 void SSLWorld::step(dReal dt) {
     if (customDT > 0) dt = customDT;
+    else if (dt <= 0) dt = last_dt;
+    last_dt = dt;
     const auto ratio = m_parent->devicePixelRatio();
     g->initScene(m_parent->width()*ratio,m_parent->height()*ratio,0,0.7,1);
     int ballCollisionTry = 5;
@@ -433,9 +435,6 @@ void SSLWorld::step(dReal dt) {
             dBodySetAngularVel(ball->body, 0, 0, 0);
             dBodySetLinearVel(ball->body, 0, 0, 0);
         }
-        if (dt == 0) dt = last_dt;
-        else last_dt = dt;
-
         selected = -1;
         p->step(dt/ballCollisionTry);
     }
