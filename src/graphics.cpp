@@ -595,6 +595,9 @@ void CGraphics::drawGround()
     glEnable (GL_DEPTH_TEST);
     glDepthFunc (GL_LESS);
 
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0, 1.0);
+
     const dReal gsize = 100.0f;
     const dReal offset = 0;
 
@@ -613,6 +616,8 @@ void CGraphics::drawGround()
                   gsize*ground_scale + ground_ofsy);
     glVertex3f (-gsize,gsize,offset);
     glEnd();
+
+    glDisable(GL_POLYGON_OFFSET_FILL);
 
     resetState();
 }
