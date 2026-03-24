@@ -74,6 +74,7 @@ private:
     static void processRobotLimits(const RobotSpecs &robotSpec, RobotSettings *settings);
     static void processMoveCommand(RobotControlResponse &robotControlResponse, const RobotMoveCommand &robotCommand,
                             Robot *robot) ;
+    void releaseBallHolds() const;
     void processTeleportBall(SimulatorResponse &simulatorResponse, const TeleportBall &teleBall) const;
     static void processTeleportRobot(const TeleportRobot &teleBot, Robot *robot);
 public:    

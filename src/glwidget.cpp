@@ -27,6 +27,20 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 
 #include <iostream>
 
+namespace {
+void relocateBall(SSLWorld* world, dReal x, dReal y, dReal z)
+{
+    for (int k = 0; k < world->cfg->Robots_Count() * 2; ++k) {
+        world->robots[k]->kicker->unholdBall();
+    }
+    world->ball->setBodyPosition(x, y, z);
+    dBodySetForce(world->ball->body, 0, 0, 0);
+    dBodySetTorque(world->ball->body, 0, 0, 0);
+    dBodySetLinearVel(world->ball->body, 0, 0, 0);
+    dBodySetAngularVel(world->ball->body, 0, 0, 0);
+}
+}
+
 GLWidget::GLWidget(QWidget *parent, ConfigWidget* _cfg)
     : QGLWidget(parent)
 {
@@ -211,9 +225,7 @@ void GLWidget::mousePressEvent(QMouseEvent *event)
         }
         else if (state==CursorMode::PLACE_BALL)
         {
-            ssl->ball->setBodyPosition(ssl->cursor_x,ssl->cursor_y,cfg->BallRadius()*1.1*20.0);
-            dBodySetAngularVel(ssl->ball->body,0,0,0);
-            dBodySetLinearVel(ssl->ball->body,0,0,0);
+            relocateBall(ssl, ssl->cursor_x, ssl->cursor_y, cfg->BallRadius()*1.1*20.0);
             ssl->show3DCursor = false;
             state = CursorMode::STEADY;
         }
@@ -431,9 +443,7 @@ void GLWidget::changeCameraMode()
 
 void GLWidget::putBall(dReal x,dReal y)
 {
-    ssl->ball->setBodyPosition(x,y,0.3);
-    dBodySetLinearVel(ssl->ball->body,0,0,0);
-    dBodySetAngularVel(ssl->ball->body,0,0,0);
+    relocateBall(ssl, x, y, 0.3);
 }
 
 void GLWidget::keyReleaseEvent(QKeyEvent* event)
@@ -549,10 +559,7 @@ void GLWidget::reform(int team,const QString& act)
 
 void GLWidget::moveBallHere()
 {
-    ssl->ball->setBodyPosition(ssl->cursor_x,ssl->cursor_y,cfg->BallRadius()*2);
-    dBodySetLinearVel(ssl->ball->body, 0.0, 0.0, 0.0);
-    dBodySetAngularVel(ssl->ball->body, 0.0, 0.0, 0.0);
-
+    relocateBall(ssl, ssl->cursor_x, ssl->cursor_y, cfg->BallRadius()*2);
 }
 
 void GLWidget::lockCameraToRobot()

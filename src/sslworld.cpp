@@ -646,6 +646,7 @@ void SSLWorld::recvActions() {
                     if (grSimPacket.replacement().ball().has_vx()) vx = grSimPacket.replacement().ball().vx();
                     if (grSimPacket.replacement().ball().has_vy()) vy = grSimPacket.replacement().ball().vy();
 
+                    releaseBallHolds();
                     ball->setBodyPosition(x,y,cfg->BallRadius()*1.2);
                     dBodySetLinearVel(ball->body,vx,vy,0);
                     dBodySetAngularVel(ball->body,0,0,0);
@@ -818,6 +819,12 @@ void SSLWorld::processRobotLimits(const RobotSpecs &robotSpec, RobotSettings *se
     }
 }
 
+void SSLWorld::releaseBallHolds() const {
+    for (int k = 0; k < cfg->Robots_Count() * 2; ++k) {
+        robots[k]->kicker->unholdBall();
+    }
+}
+
 void SSLWorld::processTeleportRobot(const TeleportRobot &teleBot, Robot *robot) {
     dReal x, y, vx = 0, vy = 0, vAngular = 0;
     robot->getXY(x, y);
@@ -863,6 +870,7 @@ void SSLWorld::processTeleportBall(SimulatorResponse &simulatorResponse, const T
     if (teleBall.has_vy()) vy = teleBall.vy();
     if (teleBall.has_vz()) vz = teleBall.vz();
 
+    releaseBallHolds();
     ball->setBodyPosition(x, y, (cfg->BallRadius() + 0.005) + z);
     dBodySetLinearVel(ball->body, vx, vy, vz);
     dBodySetAngularVel(ball->body, 0, 0, 0);

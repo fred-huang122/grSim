@@ -358,6 +358,7 @@ void Robot::resetSpeeds()
 
 void Robot::resetRobot()
 {
+    kicker->unholdBall();
     resetSpeeds();
     dBodySetLinearVel(chassis->body,0,0,0);
     dBodySetAngularVel(chassis->body,0,0,0);
