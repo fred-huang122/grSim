@@ -41,13 +41,17 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 
 int MainWindow::getInterval()
 {
-    return ceil((1000.0f / configwidget->DesiredFPS()));
+    int renderInterval = ceil(1000.0f / configwidget->DesiredFPS());
+    // Never render faster than physics updates (avoids stutter from duplicate frames).
+    // Use ceil so the timer always fires at or just after a physics step is due.
+    int simInterval = ceil(1000.0f * configwidget->DeltaTime());
+    return qMax(renderInterval, simInterval);
 }
 
 void MainWindow::customFPS(int fps)
 {
-    int k = ceil((1000.0f / fps));
-    timer->setInterval(k);
+    Q_UNUSED(fps);
+    timer->setInterval(getInterval());
     logStatus(QString("new FPS set by user: %1").arg(fps),"red");
 }
 
@@ -191,8 +195,20 @@ MainWindow::MainWindow(QWidget *parent)
     timer = new QTimer(this);
     timer->setInterval(getInterval());
 
+    uiTimer = new QTimer(this);
+    uiTimer->setInterval(33);
 
-    QObject::connect(timer, SIGNAL(timeout()), this, SLOT(update()));
+    m_simAccumulator = 0;
+    m_renderAccumulator = 0;
+    m_simHz = 0;
+    m_renderFps = 0;
+    m_simStepsThisSecond = 0;
+    m_renderFramesThisSecond = 0;
+    m_masterClock.start();
+    m_rateTimer.start();
+
+    QObject::connect(timer, SIGNAL(timeout()), this, SLOT(masterTick()));
+    QObject::connect(uiTimer, SIGNAL(timeout()), this, SLOT(updateUI()));
     QObject::connect(takeSnapshotAct, SIGNAL(triggered(bool)), this, SLOT(takeSnapshot()));
     QObject::connect(takeSnapshotToClipboardAct, SIGNAL(triggered(bool)), this, SLOT(takeSnapshotToClipboard()));
     QObject::connect(exit, SIGNAL(triggered(bool)), this, SLOT(close()));
@@ -274,6 +290,7 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(configwidget->v_BlueControlListenPort.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(reconnectBlueControlSocket()));
     QObject::connect(configwidget->v_YellowControlListenPort.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(reconnectYellowControlSocket()));
     timer->start();
+    uiTimer->start();
 
 
     this->showMaximized();
@@ -362,16 +379,64 @@ QString dRealToStr(dReal a)
     return s;
 }
 
-void MainWindow::update()
+void MainWindow::masterTick()
 {
+    qint64 elapsed_ns = m_masterClock.nsecsElapsed();
+    m_masterClock.restart();
+    dReal elapsed_sec = elapsed_ns / 1e9;
+    if (elapsed_sec > 0.250) elapsed_sec = 0.250;  // clamp to 250ms
+
+    m_simAccumulator += elapsed_sec;
+    const dReal fixedDt = configwidget->DeltaTime();
+    const int maxSteps = qMax(1, (int)(0.250 / fixedDt) + 1);
+    int steps = 0;
+
+    while (m_simAccumulator >= fixedDt && steps < maxSteps) {
+        glwidget->ssl->stepSimulation(fixedDt);
+        m_simAccumulator -= fixedDt;
+        steps++;
+        m_simStepsThisSecond++;
+    }
+    // Drop excess accumulator if sim can't keep up
+    if (m_simAccumulator > fixedDt * 2)
+        m_simAccumulator = 0;
+
     if (glwidget->ssl->isGLEnabled) {
         glwidget->ssl->g->enableGraphics();
         glwidget->updateGL();
-    } else {
-        glwidget->ssl->g->disableGraphics();
-        glwidget->step();
+    }
+    m_renderFramesThisSecond++;
+
+    qint64 rateElapsed = m_rateTimer.elapsed();
+    if (rateElapsed >= 1000) {
+        m_simHz = m_simStepsThisSecond / (rateElapsed / 1000.0);
+        m_renderFps = m_renderFramesThisSecond / (rateElapsed / 1000.0);
+        m_simStepsThisSecond = 0;
+        m_renderFramesThisSecond = 0;
+        m_rateTimer.restart();
     }
 
+    // Stop robots whose command packets are stale (>1s since last received)
+    if (glwidget != nullptr && glwidget->ssl != nullptr)
+    {
+        auto resetStaleTeam = [&](QElapsedTimer& elapsed, int team) {
+            if (elapsed.nsecsElapsed() * 1e-9 > 1) {
+                const int count = glwidget->cfg->Robots_Count();
+                for (int i = 0; i < count; ++i) {
+                    const int index = glwidget->ssl->robotIndex(i, team);
+                    if (index == -1 || glwidget->ssl->robots[index] == nullptr)
+                        continue;
+                    glwidget->ssl->robots[index]->resetSpeeds();
+                }
+            }
+        };
+        resetStaleTeam(glwidget->ssl->elapsedLastPackageBlue, BLUE - 1);
+        resetStaleTeam(glwidget->ssl->elapsedLastPackageYellow, YELLOW - 1);
+    }
+}
+
+void MainWindow::updateUI()
+{
     int R = robotIndex(glwidget->Current_robot,glwidget->Current_team);
 
     if(0 <= R)
@@ -388,17 +453,19 @@ void MainWindow::update()
         lvv[1]=vv[1];
         lvv[2]=vv[2];
     }
-    
-    fpslabel->setText(QString("Frame rate: %1 fps").arg(QString::asprintf("%06.2f",glwidget->getFPS())));        
+
+    fpslabel->setText(QString("Render: %1 fps | Sim: %2 Hz")
+        .arg(QString::asprintf("%06.2f", m_renderFps))
+        .arg(QString::asprintf("%06.2f", m_simHz)));
     if (glwidget->ssl->selected!=-1)
     {
         selectinglabel->setVisible(true);
         if (glwidget->ssl->selected==-2)
-        {            
+        {
             selectinglabel->setText("Ball");
         }
         else
-        {            
+        {
             int R = glwidget->ssl->selected%configwidget->Robots_Count();
             int T = glwidget->ssl->selected/configwidget->Robots_Count();
             if (T==0) selectinglabel->setText(QString("%1:Blue").arg(R));
@@ -410,36 +477,6 @@ void MainWindow::update()
     noiselabel->setVisible(configwidget->noise());
     cursorlabel->setText(QString("Cursor: [X=%1;Y=%2;Z=%3]").arg(dRealToStr(glwidget->ssl->cursor_x)).arg(dRealToStr(glwidget->ssl->cursor_y)).arg(dRealToStr(glwidget->ssl->cursor_z)));
     statusWidget->update();
-
-    if(glwidget != nullptr && glwidget->ssl != nullptr)
-    {
-        // Stops blue robots from moving if no package has been received for 1 second
-        if(glwidget->ssl->elapsedLastPackageBlue.nsecsElapsed()*1e-9 > 1)
-        {
-            for(int i=0; i < glwidget->cfg->Robots_Count(); ++i)
-            {
-                const int index = glwidget->ssl->robotIndex(i, BLUE-1);
-
-                if(index == -1 || glwidget->ssl->robots[index] == nullptr)
-                    continue;
-
-                glwidget->ssl->robots[index]->resetSpeeds();
-            }
-        }
-        // Stops yellow robots from moving if no package has been received for 1 second
-        if(glwidget->ssl->elapsedLastPackageYellow.nsecsElapsed()*1e-9 > 1)
-        {
-            for(int i=0; i < glwidget->cfg->Robots_Count(); ++i)
-            {
-                const int index = glwidget->ssl->robotIndex(i, YELLOW-1);
-
-                if(index == -1 || glwidget->ssl->robots[index] == nullptr)
-                    continue;
-
-                glwidget->ssl->robots[index]->resetSpeeds();
-            }
-        }
-    }
 }
 
 void MainWindow::updateRobotLabel()

@@ -106,11 +106,12 @@ ConfigWidget::ConfigWidget() {
   world.push_back(phys_vars);
     VarListPtr worldp_vars(new VarList("World"));
     phys_vars->addChild(worldp_vars);  
-        ADD_VALUE(worldp_vars,Double,DesiredFPS,60,"Desired FPS")
+        ADD_VALUE(worldp_vars,Double,DesiredFPS,60,"Render FPS Cap")
         ADD_VALUE(worldp_vars,Bool,SyncWithGL,false,"Synchronize ODE with OpenGL")
-        ADD_VALUE(worldp_vars,Double,DeltaTime,1.0/60,"ODE time step")
+        ADD_VALUE(worldp_vars,Double,DeltaTime,1.0/60,"Physics Time Step (s)")
         ADD_VALUE(worldp_vars,Double,Gravity,9.81,"Gravity")
         ADD_VALUE(worldp_vars,Bool,ResetTurnOver,true,"Auto reset turn-over")
+        ADD_VALUE(worldp_vars,Bool,LowSpecMode,false,"Low Spec Mode")
   VarListPtr ballp_vars(new VarList("Ball"));
     phys_vars->addChild(ballp_vars);
         ADD_VALUE(ballp_vars,Double,BallMass,0.043,"Ball mass");

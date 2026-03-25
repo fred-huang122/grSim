@@ -140,6 +140,7 @@ SSLWorld::SSLWorld(QGLWidget* parent, ConfigWidget* _cfg, RobotsFormation *form1
     m_parent = parent;
     show3DCursor = false;
     updatedCursor = false;
+    m_lastHighlighted = -1;
     frame_num = 0;
     last_dt = cfg->DeltaTime();
     g = new CGraphics(parent);
@@ -247,6 +248,11 @@ SSLWorld::SSLWorld(QGLWidget* parent, ConfigWidget* _cfg, RobotsFormation *form1
         robots[k+cfg->Robots_Count()] = new Robot(p,ball,cfg,form2->x[k],form2->y[k],ROBOT_START_Z(cfg),ROBOT_GRAY,ROBOT_GRAY,ROBOT_GRAY,k+cfg->Robots_Count()+1,wheeltexid,-1);//XXX
 
     p->initAllObjects();
+
+    for (int k=0;k<cfg->Robots_Count();k++)
+        robots[k]->chassis->setColor(ROBOT_BLUE_CHASSIS_COLOR);
+    for (int k=cfg->Robots_Count();k<cfg->Robots_Count()*2;k++)
+        robots[k]->chassis->setColor(ROBOT_YELLOW_CHASSIS_COLOR);
 
     //Surfaces
 
@@ -411,11 +417,23 @@ void SSLWorld::glinit() {
 }
 
 void SSLWorld::step(dReal dt) {
+    const auto ratio = m_parent->devicePixelRatio();
+    RenderQuality quality;
+    quality.lowSpec = cfg->LowSpecMode();
+    quality.showSkybox = !quality.lowSpec;
+    quality.showRobotLabels = !quality.lowSpec;
+    quality.lod = quality.lowSpec ? PrimitiveLod::Low : PrimitiveLod::Normal;
+
+    stepSimulation(dt);
+    stepSelection();
+    stepRender(m_parent->width()*ratio, m_parent->height()*ratio, quality);
+}
+
+void SSLWorld::stepSimulation(dReal dt) {
     if (customDT > 0) dt = customDT;
     else if (dt <= 0) dt = last_dt;
     last_dt = dt;
-    const auto ratio = m_parent->devicePixelRatio();
-    g->initScene(m_parent->width()*ratio,m_parent->height()*ratio,0,0.7,1);
+
     int ballCollisionTry = 5;
     for (int kk=0;kk < ballCollisionTry;kk++) {
         const dReal* ballvel = dBodyGetLinearVel(ball->body);
@@ -441,14 +459,26 @@ void SSLWorld::step(dReal dt) {
 
     sim_time += last_dt;
 
+    ball->tag = -1;
+    for (int k=0;k<cfg->Robots_Count() * 2;k++)
+    {
+        robots[k]->step();
+    }
+
+    sendVisionBuffer();
+    frame_num ++;
+}
+
+void SSLWorld::stepSelection() {
+    dReal xyz[3],hpr[3];
+    g->getViewpoint(xyz,hpr);
+
     int best_k=-1;
     dReal best_dist = 1e8;
-    dReal xyz[3],hpr[3];
     if (selected==-2) {
         best_k=-2;
         dReal bx,by,bz;
         ball->getBodyPosition(bx,by,bz);
-        g->getViewpoint(xyz,hpr);
         best_dist  =(bx-xyz[0])*(bx-xyz[0])
                 +(by-xyz[1])*(by-xyz[1])
                 +(bz-xyz[2])*(bz-xyz[2]);
@@ -457,7 +487,6 @@ void SSLWorld::step(dReal dt) {
     {
         if (robots[k]->selected)
         {
-            g->getViewpoint(xyz,hpr);
             dReal dist= (robots[k]->select_x-xyz[0])*(robots[k]->select_x-xyz[0])
                     +(robots[k]->select_y-xyz[1])*(robots[k]->select_y-xyz[1])
                     +(robots[k]->select_z-xyz[2])*(robots[k]->select_z-xyz[2]);
@@ -466,61 +495,71 @@ void SSLWorld::step(dReal dt) {
                 best_k = k;
             }
         }
-
-        // Yellow robots are on the last half of count
-        if(k >= cfg->Robots_Count())
-            robots[k]->chassis->setColor(ROBOT_YELLOW_CHASSIS_COLOR);
-        else
-            robots[k]->chassis->setColor(ROBOT_BLUE_CHASSIS_COLOR);
     }
-    if(best_k>=0)
-    {
-        if(best_k >= cfg->Robots_Count())
-            robots[best_k]->chassis->setColor(
-                        QColor::fromRgbF(ROBOT_YELLOW_CHASSIS_COLOR.redF()*2,
-                                         ROBOT_YELLOW_CHASSIS_COLOR.greenF()*1.5,
-                                         ROBOT_YELLOW_CHASSIS_COLOR.blueF()*1.5)
-                        );
-        else
-            robots[best_k]->chassis->setColor(
-                        QColor::fromRgbF(ROBOT_BLUE_CHASSIS_COLOR.redF()*2,
-                                         ROBOT_BLUE_CHASSIS_COLOR.greenF()*1.5,
-                                         ROBOT_BLUE_CHASSIS_COLOR.blueF()*1.5)
-                        );
-    }
-    selected = best_k;
-    ball->tag = -1;
-    for (int k=0;k<cfg->Robots_Count() * 2;k++)
-    {
-        robots[k]->step();
-        robots[k]->selected = false;
-    }
-    p->draw();
-    g->drawSkybox(4 * cfg->Robots_Count() + 6 + 1, //31 for 6 robot
-                  4 * cfg->Robots_Count() + 6 + 2, //32 for 6 robot
-                  4 * cfg->Robots_Count() + 6 + 3, //33 for 6 robot
-                  4 * cfg->Robots_Count() + 6 + 4, //34 for 6 robot
-                  4 * cfg->Robots_Count() + 6 + 5, //31 for 6 robot
-                  4 * cfg->Robots_Count() + 6 + 6);//36 for 6 robot
 
-    dMatrix3 R;
-
-    if (g->isGraphicsEnabled())
-        if (show3DCursor)
-        {
-            dRFromAxisAndAngle(R,0,0,1,0);
-            g->setColor(1,0.9,0.2,0.5);
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            g->drawCircle(cursor_x,cursor_y,0.001,cursor_radius);
-            glDisable(GL_BLEND);
+    // Only update colors when the highlighted robot changes
+    if (best_k != m_lastHighlighted) {
+        // Restore previous highlight to normal color
+        if (m_lastHighlighted >= 0) {
+            if (m_lastHighlighted >= cfg->Robots_Count())
+                robots[m_lastHighlighted]->chassis->setColor(ROBOT_YELLOW_CHASSIS_COLOR);
+            else
+                robots[m_lastHighlighted]->chassis->setColor(ROBOT_BLUE_CHASSIS_COLOR);
         }
 
+        // Set new highlight
+        if(best_k>=0)
+        {
+            if(best_k >= cfg->Robots_Count())
+                robots[best_k]->chassis->setColor(
+                            QColor::fromRgbF(ROBOT_YELLOW_CHASSIS_COLOR.redF()*2,
+                                             ROBOT_YELLOW_CHASSIS_COLOR.greenF()*1.5,
+                                             ROBOT_YELLOW_CHASSIS_COLOR.blueF()*1.5)
+                            );
+            else
+                robots[best_k]->chassis->setColor(
+                            QColor::fromRgbF(ROBOT_BLUE_CHASSIS_COLOR.redF()*2,
+                                             ROBOT_BLUE_CHASSIS_COLOR.greenF()*1.5,
+                                             ROBOT_BLUE_CHASSIS_COLOR.blueF()*1.5)
+                            );
+        }
+
+        m_lastHighlighted = best_k;
+    }
+
+    selected = best_k;
+
+    for (int k=0;k<cfg->Robots_Count() * 2;k++)
+        robots[k]->selected = false;
+}
+
+void SSLWorld::stepRender(int width, int height, const RenderQuality& quality) {
+    g->setLowLod(quality.lod == PrimitiveLod::Low);
+    g->initScene(width, height, 0, 0.7, 1);
+
+    p->draw();
+
+    if (quality.showSkybox) {
+        g->drawSkybox(4 * cfg->Robots_Count() + 6 + 1,
+                      4 * cfg->Robots_Count() + 6 + 2,
+                      4 * cfg->Robots_Count() + 6 + 3,
+                      4 * cfg->Robots_Count() + 6 + 4,
+                      4 * cfg->Robots_Count() + 6 + 5,
+                      4 * cfg->Robots_Count() + 6 + 6);
+    }
+
+    if (g->isGraphicsEnabled() && show3DCursor)
+    {
+        dMatrix3 R;
+        dRFromAxisAndAngle(R,0,0,1,0);
+        g->setColor(1,0.9,0.2,0.5);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+        g->drawCircle(cursor_x,cursor_y,0.001,cursor_radius);
+        glDisable(GL_BLEND);
+    }
+
     g->finalizeScene();
-
-
-    sendVisionBuffer();
-    frame_num ++;
 }
 
 void SSLWorld::addRobotStatus(Robots_Status& robotsPacket, int robotID, bool infrared, KickStatus kickStatus) {

@@ -20,6 +20,7 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #define MAINWINDOW_H
 
 #include <QMdiArea>
+#include <QElapsedTimer>
 
 #include <QLabel>
 
@@ -36,7 +37,8 @@ public:
     MainWindow(QWidget *parent = 0);
     ~MainWindow() override;
 public slots:
-    void update();
+    void masterTick();
+    void updateUI();
     void updateRobotLabel();
     void showHideSimulator(bool v);
     void changeCurrentRobot();
@@ -74,9 +76,20 @@ public slots:
 
     int robotIndex(int robot,int team);
 private:
-    int getInterval();    
+    int getInterval();
     QTimer *timer;
+    QTimer *uiTimer;
     GLWidget *glwidget;
+
+    // Fixed-timestep accumulator state
+    QElapsedTimer m_masterClock;
+    QElapsedTimer m_rateTimer;
+    dReal m_simAccumulator;
+    dReal m_renderAccumulator;
+    dReal m_simHz;
+    dReal m_renderFps;
+    int m_simStepsThisSecond;
+    int m_renderFramesThisSecond;
     ConfigWidget *configwidget;
     ConfigDockWidget *dockconfig;
     RobotWidget *robotwidget;        

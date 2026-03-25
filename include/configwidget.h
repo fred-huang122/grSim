@@ -189,6 +189,7 @@ public:
   DEF_VALUE(bool,Bool,SyncWithGL)
   DEF_VALUE(double,Double,DesiredFPS)
   DEF_VALUE(double,Double,DeltaTime)
+  DEF_VALUE(bool,Bool,LowSpecMode)
   DEF_VALUE(int,Int,sendGeometryEvery)
   DEF_VALUE(double,Double,Gravity)
   DEF_VALUE(bool,Bool,ResetTurnOver)

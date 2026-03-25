@@ -48,6 +48,7 @@ GLWidget::GLWidget(QWidget *parent, ConfigWidget* _cfg)
     state = CursorMode::STEADY;
     first_time = true;
     cfg = _cfg;
+    m_fbo = nullptr;
 
     forms[FORMATION_OUTSIDE] = new RobotsFormation(FORMATION_OUTSIDE, cfg);
     forms[FORMATION_INSIDE_1] = new RobotsFormation(FORMATION_INSIDE_1, cfg);
@@ -145,6 +146,7 @@ GLWidget::GLWidget(QWidget *parent, ConfigWidget* _cfg)
 
 GLWidget::~GLWidget()
 {
+    delete m_fbo;
 }
 
 void GLWidget::moveRobot()
@@ -383,6 +385,7 @@ void GLWidget::step()
 void GLWidget::paintGL()
 {
     if (!ssl->g->isGraphicsEnabled()) return;
+
     if (cammode==CameraMode::CURRENT_ROBOT_VIEW)
     {
         dReal x,y,z;
@@ -402,22 +405,74 @@ void GLWidget::paintGL()
         ssl->ball->getBodyPosition(x,y,z);
         ssl->g->lookAt(x,y,z);
     }
-    step();    
-    QFont font;
-    for (int i=0;i< cfg->Robots_Count()*2;i++)
-    {
-        dReal xx,yy;
-        ssl->robots[i]->getXY(xx,yy);
-        if (i>=cfg->Robots_Count()) qglColor(Qt::yellow);
-        else qglColor(Qt::cyan);
-        renderText(xx,yy,0.3,QString::number(i%cfg->Robots_Count()),font);
-        if (!ssl->robots[i]->on){
-            qglColor(Qt::red);
-            font.setBold(true);
-            renderText(xx,yy,0.4,"Off",font);
+
+    RenderQuality quality;
+    quality.lowSpec = cfg->LowSpecMode();
+    quality.showSkybox = !quality.lowSpec;
+    quality.showRobotLabels = !quality.lowSpec;
+    quality.lod = quality.lowSpec ? PrimitiveLod::Low : PrimitiveLod::Normal;
+
+    const auto ratio = devicePixelRatio();
+    int fullW = width() * ratio;
+    int fullH = height() * ratio;
+
+    if (quality.lowSpec && QGLFramebufferObject::hasOpenGLFramebufferObjects()) {
+        int scaledW = qRound(fullW * 0.75);
+        int scaledH = qRound(fullH * 0.75);
+        if (scaledW < 1) scaledW = 1;
+        if (scaledH < 1) scaledH = 1;
+
+        if (!m_fbo || m_fbo->width() != scaledW || m_fbo->height() != scaledH) {
+            delete m_fbo;
+            QGLFramebufferObjectFormat fmt;
+            fmt.setAttachment(QGLFramebufferObject::Depth);
+            m_fbo = new QGLFramebufferObject(scaledW, scaledH, fmt);
         }
-        font.setBold(false);
+
+        if (m_fbo->isValid()) {
+            m_fbo->bind();
+
+            ssl->stepSelection();
+            ssl->stepRender(scaledW, scaledH, quality);
+
+            m_fbo->release();
+
+            QRect srcRect(0, 0, scaledW, scaledH);
+            QRect dstRect(0, 0, fullW, fullH);
+            QGLFramebufferObject::blitFramebuffer(nullptr, dstRect, m_fbo, srcRect);
+        } else {
+            // FBO invalid -- fall back to direct rendering
+            ssl->stepSelection();
+            ssl->stepRender(fullW, fullH, quality);
+        }
+    } else {
+        if (m_fbo) {
+            delete m_fbo;
+            m_fbo = nullptr;
+        }
+
+        ssl->stepSelection();
+        ssl->stepRender(fullW, fullH, quality);
+
+        if (quality.showRobotLabels) {
+            QFont font;
+            for (int i=0;i< cfg->Robots_Count()*2;i++)
+            {
+                dReal xx,yy;
+                ssl->robots[i]->getXY(xx,yy);
+                if (i>=cfg->Robots_Count()) qglColor(Qt::yellow);
+                else qglColor(Qt::cyan);
+                renderText(xx,yy,0.3,QString::number(i%cfg->Robots_Count()),font);
+                if (!ssl->robots[i]->on){
+                    qglColor(Qt::red);
+                    font.setBold(true);
+                    renderText(xx,yy,0.4,"Off",font);
+                }
+                font.setBold(false);
+            }
+        }
     }
+
 }
 
 void GLWidget::changeCameraMode()

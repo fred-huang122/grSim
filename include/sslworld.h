@@ -48,6 +48,14 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 
 #define WALL_COUNT 10
 
+enum class PrimitiveLod { Normal, Low };
+
+struct RenderQuality {
+    bool lowSpec = false;
+    bool showSkybox = true;
+    bool showRobotLabels = true;
+    PrimitiveLod lod = PrimitiveLod::Normal;
+};
 
 class RobotsFormation;
 class SendingPacket {
@@ -84,6 +92,9 @@ public:
     ~SSLWorld() override;
     void glinit();
     void step(dReal dt=-1);
+    void stepSimulation(dReal dt);
+    void stepSelection();
+    void stepRender(int width, int height, const RenderQuality& quality);
     SSL_WrapperPacket* generatePacket(int cam_id=0);
     void addFieldLinesArcs(SSL_GeometryFieldSize *field);
     static void addFieldLine(SSL_GeometryFieldSize *field, const std::string &name, float p1_x, float p1_y, float p2_x, float p2_y, float thickness);
@@ -103,6 +114,7 @@ public:
     PRay* ray;
     PFixedBox* walls[WALL_COUNT]{};
     int selected{};
+    int m_lastHighlighted;
     bool show3DCursor;
     dReal cursor_x{},cursor_y{},cursor_z{};
     dReal cursor_radius{};

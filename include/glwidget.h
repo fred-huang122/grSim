@@ -21,6 +21,7 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 
 #define GL_SILENCE_DEPRECATION
 #include <QGLWidget>
+#include <QGLFramebufferObject>
 #include <QTime>
 #include <QMenu>
 
@@ -117,6 +118,8 @@ private:
     QTime time,rendertimer;
     dReal m_fps;
     QPoint lastPos;
+
+    QGLFramebufferObject* m_fbo;
 };
 
 #endif // WIDGET_H
