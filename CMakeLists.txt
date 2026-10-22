@@ -266,17 +266,15 @@ option(BUILD_TESTING "Build simulator regression tests." OFF)
 if(BUILD_TESTING)
     enable_testing()
     add_executable(grSim_timing_test tests/timing_regression.cpp)
-    # Also supplies headers and generated sources from bundled dependencies.
-    add_dependencies(grSim_timing_test ${app})
-    target_include_directories(grSim_timing_test PRIVATE $<TARGET_PROPERTY:${app},INCLUDE_DIRECTORIES>)
     target_link_libraries(grSim_timing_test grSim_core)
     add_test(NAME timing_regression COMMAND grSim_timing_test)
     set_tests_properties(timing_regression PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         TIMEOUT 20)
+    add_test(NAME timing_observer_regression COMMAND grSim_timing_test --check-observer vision)
+    add_test(NAME timing_feedback_regression COMMAND grSim_timing_test --check-observer feedback)
+    set_tests_properties(timing_observer_regression timing_feedback_regression PROPERTIES TIMEOUT 10)
     add_executable(grSim_rendering_test tests/rendering_regression.cpp)
-    add_dependencies(grSim_rendering_test ${app})
-    target_include_directories(grSim_rendering_test PRIVATE $<TARGET_PROPERTY:${app},INCLUDE_DIRECTORIES>)
     target_link_libraries(grSim_rendering_test grSim_core)
     add_test(NAME rendering_regression COMMAND grSim_rendering_test)
     set_tests_properties(rendering_regression PROPERTIES TIMEOUT 30 LABELS "opengl")
@@ -287,6 +285,12 @@ if(BUILD_TESTING)
         set_tests_properties(rendering_regression_hidpi PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=xcb;LIBGL_ALWAYS_SOFTWARE=1;QT_SCALE_FACTOR=2"
             TIMEOUT 30 LABELS "opengl")
+    endif()
+    add_test(NAME timing_rendering_regression COMMAND grSim_timing_test --rendering)
+    set_tests_properties(timing_rendering_regression PROPERTIES TIMEOUT 30 LABELS "opengl")
+    if(UNIX AND NOT APPLE)
+        set_tests_properties(timing_rendering_regression PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=xcb;LIBGL_ALWAYS_SOFTWARE=1")
     endif()
     add_executable(grSim_worker_test tests/worker_regression.cpp)
     target_link_libraries(grSim_worker_test grSim_core)

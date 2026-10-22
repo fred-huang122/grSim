@@ -4,6 +4,7 @@
 #include <QEventLoop>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkDatagram>
 #include <QProcess>
 #include <QThread>
 #include <QTimer>
@@ -30,7 +31,7 @@ static int observe(int argc, char** argv)
     clock.start();
     qint64 firstArrival = -1, lastArrival = 0, longestGap = 0;
     qint64 sent = -1, feedbackLatency = 0;
-    int frames = 0, responses = 0;
+    int frames = 0, responses = 0, sentCommands = 0;
     quint32 previousFrame = 0;
     double firstTime = 0, lastTime = 0;
     bool fixedSteps = true;
@@ -80,21 +81,30 @@ static int observe(int argc, char** argv)
         velocity->set_forward(0); velocity->set_left(0); velocity->set_angular(0);
         const std::string data = command.SerializeAsString();
         sent = clock.nsecsElapsed();
+        ++sentCommands;
         feedback.writeDatagram(data.data(), int(data.size()), QHostAddress::LocalHost, controlPort);
     });
     commands.start();
-    QTimer::singleShot(1400, &app, &QCoreApplication::quit);
+    // Leave time to receive the last response, then require no commands outstanding.
+    QTimer::singleShot(1300, Qt::PreciseTimer, &commands, &QTimer::stop);
+    QTimer::singleShot(1400, Qt::PreciseTimer, &app, &QCoreApplication::quit);
     app.exec();
+    const qint64 finalVisionAge = clock.nsecsElapsed() - lastArrival;
+    longestGap = qMax(longestGap, finalVisionAge);
+    const int unanswered = sentCommands - responses;
     const double elapsed = firstArrival >= 0 ? (lastArrival-firstArrival)/1e9 : 0;
     const double simulated = lastTime-firstTime;
     const bool passed = frames > 50 && responses > 20 && fixedSteps &&
-        longestGap < 75000000 && feedbackLatency < 75000000 && std::abs(simulated-elapsed) < 0.08;
+        longestGap < 75000000 && feedbackLatency < 75000000 && unanswered == 0 && sent < 0 &&
+        std::abs(simulated-elapsed) < 0.08;
     QJsonObject result;
     result["passed"] = passed;
     result["frames"] = frames;
     result["responses"] = responses;
     result["max_gap_ms"] = longestGap/1e6;
     result["max_feedback_ms"] = feedbackLatency/1e6;
+    result["final_vision_age_ms"] = finalVisionAge/1e6;
+    result["unanswered_commands"] = unanswered;
     result["simulation_s"] = simulated;
     result["wall_s"] = elapsed;
     const QByteArray json = QJsonDocument(result).toJson(QJsonDocument::Compact);
@@ -102,7 +112,68 @@ static int observe(int argc, char** argv)
     return passed ? 0 : 1;
 }
 
-static bool scenario(MainWindow& window, GLWidget& view, quint16 controlPort, double fps, int stall)
+// Check vision silence and missing feedback independently so either regression
+// fails even when the other channel remains healthy throughout the observation.
+static int checkObserver(int argc, char** argv)
+{
+    QCoreApplication app(argc, argv);
+    const bool freezeVision = argc > 2 && QByteArray(argv[2]) == "vision";
+    QUdpSocket control, vision;
+    if (!control.bind(QHostAddress(QHostAddress::LocalHost), 0)) return 2;
+    QProcess observer;
+    observer.start(QCoreApplication::applicationFilePath(), {"--observe", QString::number(control.localPort())});
+    if (!observer.waitForStarted(5000) || !observer.waitForReadyRead(5000)) return 2;
+    const QByteArray ready = observer.readLine().trimmed();
+    if (!ready.startsWith("READY ")) return 2;
+    const quint16 port = ready.mid(6).toUShort();
+    QElapsedTimer clock;
+    clock.start();
+    QObject::connect(&control, &QUdpSocket::readyRead, [&]() {
+        while (control.hasPendingDatagrams()) {
+            const auto datagram = control.receiveDatagram();
+            if (!freezeVision && clock.elapsed() >= 900) continue;
+            RobotControlResponse response;
+            response.add_feedback()->set_id(0);
+            const std::string data = response.SerializeAsString();
+            control.writeDatagram(data.data(), int(data.size()), datagram.senderAddress(), datagram.senderPort());
+        }
+    });
+    int frame = 0;
+    QTimer packets;
+    packets.setTimerType(Qt::PreciseTimer);
+    packets.setInterval(17);
+    QObject::connect(&packets, &QTimer::timeout, [&]() {
+        if (freezeVision && clock.elapsed() >= 900) return;
+        SSL_WrapperPacket packet;
+        auto* detection = packet.mutable_detection();
+        detection->set_camera_id(0);
+        detection->set_frame_number(frame);
+        detection->set_t_capture(frame++ / 60.0);
+        detection->set_t_sent(detection->t_capture());
+        const std::string data = packet.SerializeAsString();
+        vision.writeDatagram(data.data(), int(data.size()), QHostAddress::LocalHost, port);
+    });
+    packets.start();
+    QEventLoop loop;
+    QObject::connect(&observer, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), &loop, &QEventLoop::quit);
+    QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+    loop.exec();
+    if (observer.state() != QProcess::NotRunning) { observer.kill(); observer.waitForFinished(); return 2; }
+    const QByteArray output = observer.readAllStandardOutput().trimmed();
+    const auto result = QJsonDocument::fromJson(output).object();
+    const bool passed = observer.exitStatus() == QProcess::NormalExit && observer.exitCode() == 1 &&
+        (freezeVision ? result["final_vision_age_ms"].toDouble() >= 400 &&
+                        result["unanswered_commands"].toInt() == 0
+                      : result["final_vision_age_ms"].toDouble() < 75 &&
+                        result["unanswered_commands"].toInt() > 0);
+    std::printf("%s observer rejects %s: %s\n", passed ? "PASS" : "FAIL",
+                freezeVision ? "a final 500 ms vision freeze" : "unanswered commands with healthy vision",
+                output.constData());
+    return passed ? 0 : 1;
+}
+
+static bool scenario(MainWindow& window, GLWidget& view, quint16 controlPort, double fps, int stall,
+                     bool rendering)
 {
     QProcess observer;
     observer.start(QCoreApplication::applicationFilePath(), {"--observe", QString::number(controlPort)});
@@ -116,21 +187,36 @@ static bool scenario(MainWindow& window, GLWidget& view, quint16 controlPort, do
     view.cfg->v_DesiredFPS->setDouble(fps);
     window.reconnectVisionSocket();
     window.changeTimer();
+    int rendered = 0;
+    const auto connection = QObject::connect(&view, &GLWidget::frameRendered, [&]() {
+        ++rendered;
+        if (rendering) {
+            view.makeCurrent();
+            glFinish();
+            QThread::msleep(90);
+        }
+    });
     QEventLoop loop;
     QObject::connect(&observer, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), &loop, &QEventLoop::quit);
     if (stall) QTimer::singleShot(200, [&]() { QThread::msleep(stall); });
     QTimer::singleShot(10000, &loop, &QEventLoop::quit);
     loop.exec();
+    QObject::disconnect(connection);
     if (observer.state() != QProcess::NotRunning) { observer.kill(); observer.waitForFinished(); return false; }
     const QByteArray output = observer.readAllStandardOutput().trimmed();
-    std::printf("%s fps=%.0f gui_stall=%dms %s\n", observer.exitCode() == 0 ? "PASS" : "FAIL", fps, stall, output.constData());
+    const bool passed = observer.exitStatus() == QProcess::NormalExit && observer.exitCode() == 0 &&
+        (!rendering || rendered >= (fps >= 5 ? 2 : 1));
+    std::printf("%s fps=%.0f gui_stall=%dms rendering=%d drawn_frames=%d injected_render_cost=%dms %s\n",
+                passed ? "PASS" : "FAIL", fps, stall, rendering, rendered, rendering ? 90 : 0, output.constData());
     if (observer.exitCode()) std::fprintf(stderr, "%s", observer.readAllStandardError().constData());
-    return observer.exitCode() == 0;
+    return passed;
 }
 
 int main(int argc, char** argv)
 {
     if (argc > 2 && QByteArray(argv[1]) == "--observe") return observe(argc, argv);
+    if (argc > 1 && QByteArray(argv[1]) == "--check-observer") return checkObserver(argc, argv);
+    const bool rendering = argc > 1 && QByteArray(argv[1]) == "--rendering";
     QApplication app(argc, argv);
     QUdpSocket reserve;
     if (!reserve.bind(QHostAddress(QHostAddress::LocalHost), 0)) return 2;
@@ -148,14 +234,15 @@ int main(int argc, char** argv)
     config->v_BlueControlListenPort->setInt(controlPort);
     config->v_YellowControlListenPort->setInt(0);
     auto* window = new MainWindow(nullptr, config);
-    window->hide();
-    window->setIsGlEnabled(false);
+    if (!rendering) { window->hide(); window->setIsGlEnabled(false); }
+    else { window->showNormal(); window->resize(800, 600); app.processEvents(); }
     auto* view = window->findChild<GLWidget*>();
     if (!view) return 2;
-    bool passed = scenario(*window, *view, controlPort, 60, 0);
-    passed = scenario(*window, *view, controlPort, 5, 0) && passed;
-    passed = scenario(*window, *view, controlPort, 1, 0) && passed;
-    passed = scenario(*window, *view, controlPort, 60, 500) && passed;
+    if (rendering && !view->isValid()) return 2;
+    bool passed = scenario(*window, *view, controlPort, 60, 0, rendering);
+    passed = scenario(*window, *view, controlPort, 5, 0, rendering) && passed;
+    passed = scenario(*window, *view, controlPort, 1, 0, rendering) && passed;
+    passed = scenario(*window, *view, controlPort, 60, 500, rendering) && passed;
     delete window;
     return passed ? 0 : 1;
 }
