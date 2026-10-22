@@ -293,6 +293,11 @@ if(BUILD_TESTING)
     add_test(NAME worker_regression COMMAND grSim_worker_test)
     set_tests_properties(worker_regression PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 30)
+    add_executable(grSim_settings_test tests/settings_regression.cpp)
+    target_link_libraries(grSim_settings_test grSim_core)
+    add_test(NAME settings_regression COMMAND grSim_settings_test)
+    set_tests_properties(settings_regression PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 10)
 endif()
 
 if(APPLE AND CMAKE_MACOSX_BUNDLE)

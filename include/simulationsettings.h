@@ -120,8 +120,6 @@ struct SimulationSettings {
     double BallModelChipFixedLossDampingXyOtherHops() const { return value_BallModelChipFixedLossDampingXyOtherHops; }
     double value_BallModelChipFixedLossDampingZ{};
     double BallModelChipFixedLossDampingZ() const { return value_BallModelChipFixedLossDampingZ; }
-    bool value_SyncWithGL{};
-    bool SyncWithGL() const { return value_SyncWithGL; }
     double value_DesiredFPS{};
     double DesiredFPS() const { return value_DesiredFPS; }
     double value_DeltaTime{};

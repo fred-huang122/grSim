@@ -35,7 +35,9 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
     v_##name->addItem(str);
 
 
-ConfigWidget::ConfigWidget(bool persist) : persistSettings(persist) {
+ConfigWidget::ConfigWidget(bool persist, const QString& settingsPath)
+    : persistSettings(persist), settingsFile(settingsPath.isEmpty()
+          ? QDir::homePath() + QString("/.grsim.xml") : settingsPath) {
   tmodel=new VarTreeModel();
   this->setModel(tmodel);  
   geo_vars = std::make_shared<VarList>("Geometry");
@@ -109,9 +111,9 @@ ConfigWidget::ConfigWidget(bool persist) : persistSettings(persist) {
   world.push_back(phys_vars);
     VarListPtr worldp_vars(new VarList("World"));
     phys_vars->addChild(worldp_vars);  
-        ADD_VALUE(worldp_vars,Double,DesiredFPS,60,"Render FPS Cap")
-        ADD_VALUE(worldp_vars,Bool,SyncWithGL,false,"Synchronize ODE with OpenGL")
-        ADD_VALUE(worldp_vars,Double,DeltaTime,1.0/60,"Physics Time Step (s)")
+        // VarXML uses these names as persistent keys.
+        ADD_VALUE(worldp_vars,Double,DesiredFPS,60,"Desired FPS")
+        ADD_VALUE(worldp_vars,Double,DeltaTime,1.0/60,"ODE time step")
         ADD_VALUE(worldp_vars,Double,Gravity,9.81,"Gravity")
         ADD_VALUE(worldp_vars,Bool,ResetTurnOver,true,"Auto reset turn-over")
         ADD_VALUE(worldp_vars,Bool,LowSpecMode,false,"Low Spec Mode")
@@ -158,8 +160,30 @@ ConfigWidget::ConfigWidget(bool persist) : persistSettings(persist) {
         ADD_VALUE(vanishing_vars,Double,yellow_team_vanishing,0,"Yellow team")
         ADD_VALUE(vanishing_vars,Double,ball_vanishing,0,"Ball")
 
+    bool fpsLoaded = false, stepLoaded = false;
+    const auto fpsRead = connect(v_DesiredFPS.get(), &VarType::XMLwasRead, this,
+                                 [&]() { fpsLoaded = true; });
+    const auto stepRead = connect(v_DeltaTime.get(), &VarType::XMLwasRead, this,
+                                  [&]() { stepLoaded = true; });
     if (persistSettings)
-        world=VarXML::read(world,(QDir::homePath() + QString("/.grsim.xml")).toStdString());
+        world=VarXML::read(world,settingsFile.toStdString());
+    disconnect(fpsRead);
+    disconnect(stepRead);
+
+    // Also accept files saved by the intermediate PR version. Remove aliases
+    // and the retired synchronization option so they cannot appear as controls.
+    // When both keys are present, keep the value saved under the stable name.
+    auto migrateAlias = [&](const char* name, const std::shared_ptr<VarDouble>& setting, bool loaded) {
+        auto saved = std::dynamic_pointer_cast<VarDouble>(worldp_vars->findChild(name));
+        if (saved) {
+            if (!loaded) setting->setDouble(saved->getDouble());
+            worldp_vars->removeChild(saved);
+        }
+    };
+    migrateAlias("Render FPS Cap", v_DesiredFPS, fpsLoaded);
+    migrateAlias("Physics Time Step (s)", v_DeltaTime, stepLoaded);
+    const auto synchronization = worldp_vars->findChild("Synchronize ODE with OpenGL");
+    if (synchronization) worldp_vars->removeChild(synchronization);
 
 
     std::string blueteam = v_BlueTeam->getString();
@@ -214,7 +238,7 @@ ConfigWidget::ConfigWidget(bool persist) : persistSettings(persist) {
 ConfigWidget::~ConfigWidget() {
     delete robot_settings;
     if (persistSettings)
-        VarXML::write(world,(QDir::homePath() + QString("/.grsim.xml")).toStdString());
+        VarXML::write(world,settingsFile.toStdString());
 }
 
 
@@ -306,7 +330,6 @@ SimulationSettings ConfigWidget::simulationSettings()
     result.value_BallModelChipFixedLossDampingXyFirstHop = BallModelChipFixedLossDampingXyFirstHop();
     result.value_BallModelChipFixedLossDampingXyOtherHops = BallModelChipFixedLossDampingXyOtherHops();
     result.value_BallModelChipFixedLossDampingZ = BallModelChipFixedLossDampingZ();
-    result.value_SyncWithGL = SyncWithGL();
     result.value_DesiredFPS = DesiredFPS();
     result.value_DeltaTime = DeltaTime();
     result.value_LowSpecMode = LowSpecMode();

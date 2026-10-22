@@ -23,7 +23,7 @@ jobs:
       - name: "Build regression tests"
         run: |
           cmake -S . -B build -DBUILD_TESTING=ON
-          cmake --build build --target grSim_timing_test grSim_rendering_test grSim_worker_test -j 2
+          cmake --build build -j 2
       - name: "Run regression tests"
         working-directory: build
         run: xvfb-run -a ctest --output-on-failure

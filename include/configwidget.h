@@ -100,10 +100,11 @@ protected:
   vector<VarPtr> world;
   VarTreeModel * tmodel;    
   bool persistSettings;
+  QString settingsFile;
   bool settingsNotificationPending = false;
 public:
   VarListPtr geo_vars;
-  explicit ConfigWidget(bool persistSettings = true);
+  explicit ConfigWidget(bool persistSettings = true, const QString& settingsPath = QString());
   SimulationSettings simulationSettings();
   void applyRemoteSettings(const SimulationSettings& settings);
   ~ConfigWidget() override;
@@ -153,7 +154,6 @@ public:
   DEF_VALUE(double,Double,BallModelChipFixedLossDampingXyOtherHops)
   DEF_VALUE(double,Double,BallModelChipFixedLossDampingZ)
 
-  DEF_VALUE(bool,Bool,SyncWithGL)
   DEF_VALUE(double,Double,DesiredFPS)
   DEF_VALUE(double,Double,DeltaTime)
   DEF_VALUE(bool,Bool,LowSpecMode)
