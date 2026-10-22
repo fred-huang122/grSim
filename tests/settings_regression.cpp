@@ -10,6 +10,20 @@ static bool check(bool passed, const char* description)
     return passed;
 }
 
+class InspectableConfig : public ConfigWidget {
+public:
+    using ConfigWidget::ConfigWidget;
+    VarPtr worldSettings() const {
+        for (const auto& item : world) {
+            if (item->getName() == "Physics") {
+                for (const auto& child : item->getChildren())
+                    if (child->getName() == "World") return child;
+            }
+        }
+        return {};
+    }
+};
+
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
@@ -70,6 +84,32 @@ int main(int argc, char** argv)
         ConfigWidget config(true, path);
         passed = check(config.DesiredFPS() == 60 && config.DeltaTime() == 0.01,
                        "stable timing keys take precedence over aliases even at the default FPS") && passed;
+    }
+    auto screenshotPhysics = std::make_shared<VarList>("Physics");
+    auto screenshotWorld = std::make_shared<VarList>("World");
+    screenshotPhysics->addChild(screenshotWorld);
+    screenshotWorld->addChild(std::make_shared<VarDouble>("Render FPS Cap", 240.0));
+    screenshotWorld->addChild(std::make_shared<VarDouble>("Physics Time Step (s)", 0.016667));
+    screenshotWorld->addChild(std::make_shared<VarDouble>("Desired FPS", 60.0));
+    screenshotWorld->addChild(std::make_shared<VarDouble>("ODE time step", 0.016670));
+    screenshotWorld->addChild(std::make_shared<VarBool>("Synchronize ODE with OpenGL", false));
+    VarXML::write(screenshotPhysics, path.toStdString());
+    {
+        InspectableConfig config(true, path);
+        passed = check(config.DesiredFPS() == 60 && config.DeltaTime() == 0.016670,
+                       "screenshot settings preserve this branch's active timing values") && passed;
+        const auto settings = config.worldSettings();
+        int fpsRows = 0, timestepRows = 0;
+        bool aliases = false;
+        if (settings) for (const auto& child : settings->getChildren()) {
+            const auto name = child->getName();
+            if (name == "Desired FPS") ++fpsRows;
+            if (name == "ODE time step") ++timestepRows;
+            if (name == "Render FPS Cap" || name == "Physics Time Step (s)" ||
+                name == "Synchronize ODE with OpenGL") aliases = true;
+        }
+        passed = check(settings && fpsRows == 1 && timestepRows == 1 && !aliases,
+                       "screenshot settings produce one FPS row and one timestep row in the UI tree") && passed;
     }
     return passed ? 0 : 1;
 }
