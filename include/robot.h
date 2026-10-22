@@ -21,6 +21,7 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 
 #include "physics/pworld.h"
 #include "physics/pcylinder.h"
+#include "physics/pchassiscollision.h"
 #include "physics/pbox.h"
 #include "physics/pball.h"
 #include "simulationsettings.h"
@@ -52,6 +53,7 @@ public:
     RobotSettings settings;
     dSpaceID space;
     PCylinder* chassis;
+    PChassisCollision* ballHull;
     PBall* dummy;
     dJointID dummy_to_chassis;
     PBox* boxes[3]{};

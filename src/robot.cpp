@@ -231,6 +231,10 @@ Robot::Robot(PWorld* world,PBall *ball,SimulationSettings* _cfg,dReal x,dReal y,
     chassis->space = space;
     w->addObject(chassis);
 
+    ballHull = new PChassisCollision(chassis->body, settings.RobotRadius, settings.RobotHeight);
+    ballHull->space = space;
+    w->addObject(ballHull);
+
     dummy   = new PBall(x,y,z,settings.RobotCenterFromKicker,settings.BodyMass*0.01f,0,0,0);
     dummy->setVisibility(false);
     dummy->space = space;

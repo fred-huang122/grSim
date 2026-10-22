@@ -190,6 +190,7 @@ set(SOURCES
     src/physics/pground.cpp
     src/physics/pfixedbox.cpp
     src/physics/pcylinder.cpp
+    src/physics/pchassiscollision.cpp
     src/physics/pbox.cpp
     src/physics/pray.cpp
     src/net/robocup_ssl_server.cpp
@@ -215,6 +216,7 @@ set(HEADERS
     include/physics/pground.h
     include/physics/pfixedbox.h
     include/physics/pcylinder.h
+    include/physics/pchassiscollision.h
     include/physics/pbox.h
     include/physics/pray.h
     include/net/robocup_ssl_server.h
@@ -302,6 +304,11 @@ if(BUILD_TESTING)
     add_test(NAME settings_regression COMMAND grSim_settings_test)
     set_tests_properties(settings_regression PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 10)
+    add_executable(grSim_collision_test tests/collision_regression.cpp)
+    target_link_libraries(grSim_collision_test grSim_core)
+    add_test(NAME collision_regression COMMAND grSim_collision_test)
+    set_tests_properties(collision_regression PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
 endif()
 
 if(APPLE AND CMAKE_MACOSX_BUNDLE)

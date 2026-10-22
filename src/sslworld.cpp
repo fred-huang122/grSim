@@ -244,8 +244,9 @@ SSLWorld::SSLWorld(QObject* parent, SimulationSettings* _cfg, RobotsFormation *f
     {
         p->createSurface(robots[k]->chassis,ground);
         for (auto & wall : walls) p->createSurface(robots[k]->chassis,wall);
-        p->createSurface(robots[k]->dummy,ball);
-        //p->createSurface(robots[k]->chassis,ball);
+        // The chassis hull includes the front cutout so the ball can still
+        // reach the dribbler. Keep the dummy sphere only for robot contacts.
+        p->createSurface(robots[k]->ballHull,ball);
         ballwithkicker.surface.mu = fric(robots[k]->settings.Kicker_Friction);
         p->createSurface(robots[k]->kicker->box,ball)->surface = ballwithkicker.surface;
         for (auto & wheel : robots[k]->wheels)

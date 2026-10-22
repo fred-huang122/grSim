@@ -71,6 +71,10 @@ Capture checks detect blank images through size, opacity, and color diversity;
 they do not verify textures, field markings, or visual fidelity. OpenGL feedback
 checks separately verify that Low Spec reduces textured wheel and chassis
 geometry. Settings tests load historical XML keys and check save/reload behavior.
+Collision tests check side and rear ball contact, dribbler access, roller
+retention while stationary and moving, and flat/chip kicks for separate team
+sizes and rotated robots. Ball contact uses a fixed chassis hull with a front
+cutout; render quality does not change the physical shape.
 Tests use temporary configuration values without reading or writing personal
 simulator settings. In the configuration tree, **Desired FPS** caps rendering and
 **ODE time step** sets the fixed physics step; their names remain stable for saved
