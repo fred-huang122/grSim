@@ -30,7 +30,7 @@ public:
     virtual ~PBall();
     virtual void setMass(dReal mass);
     virtual void init();
-    virtual void draw();
+    RenderPrimitive renderPrimitive() const override;
 };
 
 #endif // PBALL_H

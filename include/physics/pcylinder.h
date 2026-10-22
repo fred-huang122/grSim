@@ -25,7 +25,6 @@ class PCylinder : public PObject
 {
 private:
     dReal m_radius,m_length;
-    GLuint m_gllistid;
     int m_texid;
     bool m_robot;
 public:
@@ -33,7 +32,7 @@ public:
     virtual ~PCylinder();
     virtual void setMass(dReal mass);
     virtual void init();
-    virtual void draw();
+    RenderPrimitive renderPrimitive() const override;
 };
 
 #endif // PCYLINDER_H

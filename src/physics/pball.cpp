@@ -47,8 +47,10 @@ void PBall::setMass(dReal mass)
     dBodySetMass (body,&m);
 }
 
-void PBall::draw()
+RenderPrimitive PBall::renderPrimitive() const
 {
-  PObject::draw();
-  g->drawSphere(dBodyGetPosition(body),dBodyGetRotation(body),m_radius);
+    RenderPrimitive result = PObject::renderPrimitive();
+    result.kind = PrimitiveKind::Sphere;
+    result.dimensions = {{m_radius, 0, 0}};
+    return result;
 }

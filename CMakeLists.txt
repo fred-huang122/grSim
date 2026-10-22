@@ -195,6 +195,8 @@ set(SOURCES
     src/net/robocup_ssl_server.cpp
     src/net/robocup_ssl_client.cpp
     src/sslworld.cpp
+    src/simulation.cpp
+    src/scenerenderer.cpp
     src/robot.cpp
     src/configwidget.cpp
     src/statuswidget.cpp
@@ -218,6 +220,10 @@ set(HEADERS
     include/net/robocup_ssl_server.h
     include/net/robocup_ssl_client.h
     include/sslworld.h
+    include/simulation.h
+    include/simulationsettings.h
+    include/scenesnapshot.h
+    include/scenerenderer.h
     include/robot.h
     include/configwidget.h
     include/statuswidget.h
@@ -241,9 +247,53 @@ set(srcs
 file(GLOB CONFIG_FILES "config/*.ini")
 set_source_files_properties(${CONFIG_FILES}  PROPERTIES MACOSX_PACKAGE_LOCATION "config")
 
-target_sources(${app} PRIVATE ${srcs})
+set(CORE_SOURCES ${srcs})
+list(REMOVE_ITEM CORE_SOURCES src/main.cpp)
+add_library(grSim_core STATIC ${CORE_SOURCES})
+set_target_properties(grSim_core PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+target_include_directories(grSim_core PUBLIC $<TARGET_PROPERTY:${app},INCLUDE_DIRECTORIES>)
+target_link_libraries(grSim_core PUBLIC ${libs})
+foreach(dependency vartypes_external protobuf_external ode_external)
+    if(TARGET ${dependency})
+        add_dependencies(grSim_core ${dependency})
+    endif()
+endforeach()
+target_sources(${app} PRIVATE src/main.cpp)
 install(TARGETS ${app} DESTINATION bin)
-target_link_libraries(${app} ${libs})
+target_link_libraries(${app} grSim_core)
+
+option(BUILD_TESTING "Build simulator regression tests." OFF)
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(grSim_timing_test tests/timing_regression.cpp)
+    # Also supplies headers and generated sources from bundled dependencies.
+    add_dependencies(grSim_timing_test ${app})
+    target_include_directories(grSim_timing_test PRIVATE $<TARGET_PROPERTY:${app},INCLUDE_DIRECTORIES>)
+    target_link_libraries(grSim_timing_test grSim_core)
+    add_test(NAME timing_regression COMMAND grSim_timing_test)
+    set_tests_properties(timing_regression PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 20)
+    add_executable(grSim_rendering_test tests/rendering_regression.cpp)
+    add_dependencies(grSim_rendering_test ${app})
+    target_include_directories(grSim_rendering_test PRIVATE $<TARGET_PROPERTY:${app},INCLUDE_DIRECTORIES>)
+    target_link_libraries(grSim_rendering_test grSim_core)
+    add_test(NAME rendering_regression COMMAND grSim_rendering_test)
+    set_tests_properties(rendering_regression PROPERTIES TIMEOUT 30 LABELS "opengl")
+    if(UNIX AND NOT APPLE)
+        set_tests_properties(rendering_regression PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=xcb;LIBGL_ALWAYS_SOFTWARE=1")
+        add_test(NAME rendering_regression_hidpi COMMAND grSim_rendering_test)
+        set_tests_properties(rendering_regression_hidpi PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=xcb;LIBGL_ALWAYS_SOFTWARE=1;QT_SCALE_FACTOR=2"
+            TIMEOUT 30 LABELS "opengl")
+    endif()
+    add_executable(grSim_worker_test tests/worker_regression.cpp)
+    target_link_libraries(grSim_worker_test grSim_core)
+    add_test(NAME worker_regression COMMAND grSim_worker_test)
+    set_tests_properties(worker_regression PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 30)
+endif()
 
 if(APPLE AND CMAKE_MACOSX_BUNDLE)
   # use CMAKE_MACOSX_BUNDLE if you want to build a mac bundle

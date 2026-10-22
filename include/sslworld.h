@@ -20,13 +20,12 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #define SSLWORLD_H
 
 
-#include <QGLWidget>
 #include <QObject>
+#include <QElapsedTimer>
 #include <QUdpSocket>
 #include <QList>
 
 
-#include "graphics.h"
 #include "physics/pworld.h"
 #include "physics/pball.h"
 #include "physics/pground.h"
@@ -36,7 +35,7 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #include "net/robocup_ssl_server.h"
 
 #include "robot.h"
-#include "configwidget.h"
+#include "simulationsettings.h"
 
 #include "config.h"
 
@@ -47,15 +46,6 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #include "ssl_simulation_robot_feedback.pb.h"
 
 #define WALL_COUNT 10
-
-enum class PrimitiveLod { Normal, Low };
-
-struct RenderQuality {
-    bool lowSpec = false;
-    bool showSkybox = true;
-    bool showRobotLabels = true;
-    PrimitiveLod lod = PrimitiveLod::Normal;
-};
 
 class RobotsFormation;
 class SendingPacket {
@@ -69,7 +59,6 @@ class SSLWorld : public QObject
 {
     Q_OBJECT
 private:
-    QGLWidget* m_parent;
     int frame_num;
     dReal last_dt;
     dReal sim_time = 0;
@@ -87,14 +76,10 @@ private:
     static void processTeleportRobot(const TeleportRobot &teleBot, Robot *robot);
 public:    
     dReal customDT;
-    bool isGLEnabled;
-    SSLWorld(QGLWidget* parent, ConfigWidget* _cfg, RobotsFormation *form1, RobotsFormation *form2);
+    SSLWorld(QObject* parent, SimulationSettings* _cfg, RobotsFormation *form1, RobotsFormation *form2);
     ~SSLWorld() override;
-    void glinit();
-    void step(dReal dt=-1);
     void stepSimulation(dReal dt);
-    void stepSelection();
-    void stepRender(int width, int height, const RenderQuality& quality);
+    std::shared_ptr<SceneSnapshot> snapshot(quint64 generation) const;
     SSL_WrapperPacket* generatePacket(int cam_id=0);
     void addFieldLinesArcs(SSL_GeometryFieldSize *field);
     static void addFieldLine(SSL_GeometryFieldSize *field, const std::string &name, float p1_x, float p1_y, float p2_x, float p2_y, float thickness);
@@ -106,18 +91,11 @@ public:
     static void addRobotStatus(Robots_Status& robotsPacket, int robotID, bool infrared, KickStatus kickStatus);
     void sendRobotStatus(Robots_Status& robotsPacket, const QHostAddress& sender, int team);
 
-    ConfigWidget* cfg;
-    CGraphics* g;
+    SimulationSettings* cfg;
     PWorld* p;
     PBall* ball;
     PGround* ground;
-    PRay* ray;
     PFixedBox* walls[WALL_COUNT]{};
-    int selected{};
-    int m_lastHighlighted;
-    bool show3DCursor;
-    dReal cursor_x{},cursor_y{},cursor_z{};
-    dReal cursor_radius{};
     RoboCupSSLServer *visionServer{};
     QUdpSocket *commandSocket{};
     QUdpSocket *blueStatusSocket{},*yellowStatusSocket{};
@@ -128,7 +106,6 @@ public:
     QElapsedTimer elapsedLastPackageBlue;
     QElapsedTimer elapsedLastPackageYellow;
 
-    bool updatedCursor;
     Robot* robots[MAX_ROBOT_COUNT*2]{};
     int sendGeomCount;
     bool restartRequired;
@@ -153,12 +130,12 @@ class RobotsFormation {
     public:
         dReal x[MAX_ROBOT_COUNT]{};
         dReal y[MAX_ROBOT_COUNT]{};
-        RobotsFormation(E_FORMATION type, ConfigWidget* _cfg);
+        RobotsFormation(E_FORMATION type, SimulationSettings* _cfg);
         void setAll(const dReal *xx,const dReal *yy);
         void loadFromFile(const QString& filename);
         void resetRobots(Robot** r,int team);
     private:
-        ConfigWidget* cfg;
+        SimulationSettings* cfg;
 };
 
 dReal fric(dReal f);

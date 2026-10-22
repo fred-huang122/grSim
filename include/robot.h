@@ -23,7 +23,7 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #include "physics/pcylinder.h"
 #include "physics/pbox.h"
 #include "physics/pball.h"
-#include "configwidget.h"
+#include "simulationsettings.h"
 
 enum KickStatus {
     NO_KICK   = 0,
@@ -48,7 +48,8 @@ class Robot {
     dReal VelAbsoluteMax;
     dReal VelAngularMax;
 public:    
-    ConfigWidget* cfg;
+    SimulationSettings* cfg;
+    RobotSettings settings;
     dSpaceID space;
     PCylinder* chassis;
     PBall* dummy;
@@ -58,7 +59,6 @@ public:
     //these values are not controled by this class
     bool selected{};
     dReal select_x{},select_y{},select_z{};
-    QImage *img{},*number{};
     class Wheel
     {
       public:
@@ -96,10 +96,9 @@ public:
         Robot* rob;
     } *kicker;
 
-    Robot(PWorld* world,PBall* ball,ConfigWidget* _cfg,dReal x,dReal y,dReal z,dReal r,dReal g,dReal b,int rob_id,int wheeltexid,int dir);
+    Robot(PWorld* world,PBall* ball,SimulationSettings* _cfg,dReal x,dReal y,dReal z,dReal r,dReal g,dReal b,int rob_id,int wheeltexid,int dir);
     ~Robot();
     void step();
-    void drawLabel();
     void setSpeed(int i,dReal s); //i = 0,1,2,3
     void setSpeed(dReal vx, dReal vy, dReal vw);
     dReal getSpeed(int i);

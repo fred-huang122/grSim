@@ -34,7 +34,7 @@ private:
     int **sur_matrix;
     int objects_count;
 public:
-    PWorld(dReal dt,dReal gravity,CGraphics* graphics, int robot_count);
+    PWorld(dReal dt,dReal gravity, int robot_count);
     ~PWorld();
     void setGravity(dReal gravity);
     void addObject(PObject* o);
@@ -42,12 +42,10 @@ public:
     PSurface* createSurface(PObject* o1,PObject* o2);
     PSurface* findSurface(PObject* o1,PObject* o2);
     void step(dReal dt=-1);
-    void glinit();
-    void draw();
+    std::vector<RenderPrimitive> renderPrimitives() const;
     void handleCollisions(dGeomID o1, dGeomID o2);    
     dWorldID world;
     dSpaceID space;
-    CGraphics* g;
     int robot_count;
 };
 
@@ -63,5 +61,6 @@ public:
     dVector3 fdir1;  //fdir1 is a normalized vector tangent to friction force vector
     dVector3 contactPos,contactNormal;
     PSurfaceCallback* callback;
+    void* callbackData = nullptr;
 };
 #endif // PWORLD_H

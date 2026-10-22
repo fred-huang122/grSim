@@ -29,7 +29,7 @@ public:
     PFixedBox(dReal x,dReal y,dReal z,dReal w,dReal h,dReal l,dReal r,dReal g,dReal b);
     virtual ~PFixedBox();
     virtual void init();
-    virtual void draw();
+    RenderPrimitive renderPrimitive() const override;
 };
 
 #endif // PFIXEDBOX_H

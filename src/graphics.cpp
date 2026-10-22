@@ -75,6 +75,15 @@ bool CGraphics::isGraphicsEnabled()
     return !graphicDisabled;
 }
 
+void CGraphics::clearTextures()
+{
+    for (const auto texture : tex_ids) owner->deleteTexture(texture);
+    tex_ids.clear();
+    if (m_skyboxList) glDeleteLists(m_skyboxList, 1);
+    m_skyboxList = 0;
+    m_skyboxCacheT1 = -1;
+}
+
 void CGraphics::setSphereQuality(int q) {sphere_quality = q;}
 void CGraphics::setLowLod(bool lowLod) {m_lowLod = lowLod;}
 
@@ -83,7 +92,6 @@ int CGraphics::loadTexture(QImage* img)
     if (graphicDisabled) return -1;
     GLuint id;
     glEnable(GL_TEXTURE_2D);
-    glGenTextures(1, &id);
     id = owner->bindTexture(*img);
 
     tex_ids.append(id);
@@ -799,7 +807,7 @@ void CGraphics::_drawBox ()
 {
     if (graphicDisabled) return;
 
-    static GLuint box_list = 0;
+    GLuint& box_list = m_boxList;
     if (box_list == 0) {
         box_list = glGenLists(1);
         glNewList(box_list, GL_COMPILE);
@@ -922,7 +930,7 @@ void CGraphics::_drawSphere()
 {
     if (graphicDisabled) return;
 
-    static GLuint listnum = 0;
+    GLuint& listnum = m_sphereList;
     if (listnum==0) {
         listnum = glGenLists (1);
         glNewList (listnum,GL_COMPILE);
@@ -1114,7 +1122,8 @@ void CGraphics::_drawCylinder (bool lowLod)
 {
     if (graphicDisabled) return;
 
-    static GLuint normalList = 0, lowList = 0;
+    GLuint& normalList = m_normalCylinderList;
+    GLuint& lowList = m_lowCylinderList;
     if (normalList == 0) {
         normalList = glGenLists(1);
         glNewList(normalList, GL_COMPILE);

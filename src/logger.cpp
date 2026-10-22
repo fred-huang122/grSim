@@ -18,14 +18,19 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 
 #include "logger.h"
 #include "statuswidget.h"
-CStatusPrinter *printer;
+#include <atomic>
+#include <QDebug>
+static std::atomic<CStatusPrinter*> printer{nullptr};
 void initLogger(void* v)
 {
-    printer = (CStatusPrinter*) v;
+    printer.store(static_cast<CStatusPrinter*>(v));
 }
 
 void logStatus(QString s,QColor c)
 {    
-    printer->textBuffer.enqueue(CStatusText(s,c));
+    auto* destination = printer.load();
+    if (!destination) { qWarning().noquote() << s; return; }
+    QMetaObject::invokeMethod(destination, "enqueue", Qt::AutoConnection,
+                              Q_ARG(QString, s), Q_ARG(QColor, c));
 }
 

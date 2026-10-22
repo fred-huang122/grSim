@@ -34,10 +34,11 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = 0);
+    MainWindow(QWidget *parent = 0, ConfigWidget *config = nullptr);
     ~MainWindow() override;
 public slots:
-    void masterTick();
+    void renderTick();
+    void recordRenderedFrame();
     void updateUI();
     void updateRobotLabel();
     void showHideSimulator(bool v);
@@ -51,6 +52,7 @@ public slots:
     void changeBallDamping();
     void changeGravity();
     void changeTimer();
+    void changePhysicsTimer();
 
     void restartSimulator();
     void ballMenuTriggered(QAction* act);
@@ -68,27 +70,19 @@ public slots:
     void reconnectSimControlSocket();
     void reconnectBlueControlSocket();
     void reconnectYellowControlSocket();
-    void recvActions();
-    void simControlSocketReady();
-    void blueControlSocketReady();
-    void yellowControlSocketReady();
     void setIsGlEnabled(bool value);
 
     int robotIndex(int robot,int team);
 private:
-    int getInterval();
-    QTimer *timer;
+    int getRenderInterval();
+    SimulationController* simulation;
+    QTimer *renderTimer;
     QTimer *uiTimer;
     GLWidget *glwidget;
 
-    // Fixed-timestep accumulator state
-    QElapsedTimer m_masterClock;
     QElapsedTimer m_rateTimer;
-    dReal m_simAccumulator;
-    dReal m_renderAccumulator;
     dReal m_simHz;
     dReal m_renderFps;
-    int m_simStepsThisSecond;
     int m_renderFramesThisSecond;
     ConfigWidget *configwidget;
     ConfigDockWidget *dockconfig;
@@ -103,12 +97,11 @@ private:
     QLabel *fpslabel,*cursorlabel,*selectinglabel,*vanishlabel,*noiselabel;
     QString current_dir;
 
-    RoboCupSSLServer *visionServer;
-    QUdpSocket *commandSocket;
-    QUdpSocket *blueStatusSocket,*yellowStatusSocket;
-    QUdpSocket *simControlSocket;
-    QUdpSocket *blueControlSocket;
-    QUdpSocket *yellowControlSocket;
+    std::array<double, 3> previousVelocity{{0, 0, 0}};
+    double previousSimTime = 0;
+    quint64 previousGeneration = 0;
+    int previousRobot = -1;
+
 };
 
 #endif // MAINWINDOW_H

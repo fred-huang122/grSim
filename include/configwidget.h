@@ -27,6 +27,8 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #include <QMainWindow>
 #include <QSettings>
 
+#include "simulationsettings.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <memory>
@@ -90,45 +92,6 @@ using namespace VarTypes;
 #endif
 
 
-class RobotSettings {
-public:
-    //geometeric settings
-    double RobotCenterFromKicker;
-    double RobotRadius;
-    double RobotHeight;
-    double BottomHeight;
-    double KickerZ;
-    double KickerThickness;
-    double KickerWidth;
-    double KickerHeight;
-    double WheelRadius;
-    double WheelThickness;
-    double Wheel1Angle;
-    double Wheel2Angle;
-    double Wheel3Angle;
-    double Wheel4Angle;
-    //physical settings
-    double BodyMass;
-    double WheelMass;
-    double KickerMass;
-    double KickerDampFactor;
-    double RollerTorqueFactor;
-    double RollerPerpendicularTorqueFactor;
-    double Kicker_Friction;
-    double WheelTangentFriction;
-    double WheelPerpendicularFriction;
-    double Wheel_Motor_FMax;
-    double MaxLinearKickSpeed;
-    double MaxChipKickSpeed;
-    double AccSpeedupAbsoluteMax;
-    double AccSpeedupAngularMax;
-    double AccBrakeAbsoluteMax;
-    double AccBrakeAngularMax;
-    double VelAbsoluteMax;
-    double VelAngularMax;
-};
-
-
 class ConfigWidget : public VarTreeView
 {
   Q_OBJECT
@@ -136,9 +99,13 @@ class ConfigWidget : public VarTreeView
 protected:
   vector<VarPtr> world;
   VarTreeModel * tmodel;    
+  bool persistSettings;
+  bool settingsNotificationPending = false;
 public:
   VarListPtr geo_vars;
-  ConfigWidget();
+  explicit ConfigWidget(bool persistSettings = true);
+  SimulationSettings simulationSettings();
+  void applyRemoteSettings(const SimulationSettings& settings);
   ~ConfigWidget() override;
 
   QSettings* robot_settings;
@@ -220,6 +187,9 @@ public:
   void loadRobotSettings(QString team);
 public slots:  
   void loadRobotsSettings();
+  void queueSettingsEdited();
+signals:
+  void settingsEdited();
 };
 
 class ConfigDockWidget : public QDockWidget

@@ -42,6 +42,8 @@ private:
     QGLWidget* owner;
     int sphere_quality;
     bool m_lowLod;
+    GLuint m_boxList = 0, m_sphereList = 0;
+    GLuint m_normalCylinderList = 0, m_lowCylinderList = 0;
     // Field marking display list cache
     GLuint m_fieldList;
     dReal m_fieldCacheRad, m_fieldCacheLength, m_fieldCacheWidth;
@@ -65,6 +67,7 @@ public:
     void disableGraphics();
     void enableGraphics();
     bool isGraphicsEnabled();
+    void clearTextures();
     int loadTexture(QImage* img);
     int loadTextureSkyBox(QImage* img);
     void setViewpoint (dReal xyz[3], dReal hpr[3]);

@@ -19,7 +19,8 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #ifndef POBJECT_H
 #define POBJECT_H
 #include <ode/ode.h>
-#include "graphics.h"
+#include <QColor>
+#include "scenesnapshot.h"
 
 class PObject
 {
@@ -51,14 +52,14 @@ public:
     bool getVisibility();
     virtual void setMass(dReal mass);
     virtual void init()=0;
-    virtual void glinit();
-    virtual void draw();
+    virtual RenderPrimitive renderPrimitive() const;
 
     dBodyID body;
     dGeomID geom;
     dWorldID world;
     dSpaceID space;
-    CGraphics *g;
+    int robotIndex = -1;
+    bool robotChassis = false;
     int tag;
     int id;
 };
