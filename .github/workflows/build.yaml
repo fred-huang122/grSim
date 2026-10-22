@@ -7,13 +7,15 @@ on:
 jobs:
   build-linux:
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
+        os: [ ubuntu-22.04, ubuntu-24.04 ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      - name: "Select Ubuntu package mirror"
+        if: matrix.os == 'ubuntu-24.04'
+        run: sudo sed -i 's|http://azure\.archive\.ubuntu\.com/ubuntu|https://mirrors.edge.kernel.org/ubuntu|g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
       - name: "Update dependencies"
         run: sudo apt-get update
       - name: "Install dependencies"
@@ -30,29 +32,19 @@ jobs:
 
   build-macos:
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        os: [ macos-13, macos-14 ]
+        os: [ macos-15, macos-26 ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Install dependencies"
-        run: brew tap robotology/formulae && brew install cmake pkg-config qt@5
+        run: brew install cmake pkg-config qt@5
       - name: "Build"
         run: |
-          # For macOS 13
-          export PATH="/usr/local/opt/qt@5/bin:$PATH"
-          export LDFLAGS="-L/usr/local/opt/qt@5/lib"
-          export CPPFLAGS="-I/usr/local/opt/qt@5/include"
-          export PKG_CONFIG_PATH="/usr/local/opt/qt@5/lib/pkgconfig"
-          
-          # For macOS 14
-          export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
-          export LDFLAGS="-L/opt/homebrew/opt/qt@5/lib"
-          export CPPFLAGS="-I/opt/homebrew/opt/qt@5/include"
-          export PKG_CONFIG_PATH="/opt/homebrew/opt/qt@5/lib/pkgconfig"
-          
+          qt_prefix="$(brew --prefix qt@5)"
+          export PATH="$qt_prefix/bin:$PATH"
+          export CMAKE_PREFIX_PATH="$qt_prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
           make
 
 # Windows build does not work currently, see https://github.com/RoboCup-SSL/grSim/issues/183

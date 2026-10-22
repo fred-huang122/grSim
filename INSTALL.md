@@ -72,16 +72,16 @@ For Mac OS X, you will need to have installed:
 - [Xcode](https://developer.apple.com/xcode/) or Xcode Command Line Tools 8.0 or newer;
 - [Homebrew](http://brew.sh/) package manager.
 
-Than install the dependencies needed:
+Then install the dependencies needed:
 
 ```bash
-brew install cmake
-brew install pkg-config
-brew tap robotology/formulae         
-brew install robotology/formulae/ode
-brew install qt@5
-brew install protobuf@21
+brew install cmake pkg-config qt@5
+export CMAKE_PREFIX_PATH="$(brew --prefix qt@5)${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
 ```
+
+Keep this export in the shell used to build grSim so CMake and its dependency
+builds can find Qt on both Intel and Apple Silicon. ODE, VarTypes, and a
+compatible Protobuf are built automatically when needed.
 
 If you run into build issues, you may need to run this first:
 

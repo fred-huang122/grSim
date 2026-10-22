@@ -109,7 +109,8 @@ find_package(VarTypes)
 if(NOT VARTYPES_FOUND)
   include(ExternalProject)
   
-  set(VARTYPES_CMAKE_ARGS "-DVARTYPES_BUILD_STATIC=ON;-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
+  # The bundled dependency still requests policies removed by CMake 4.
+  set(VARTYPES_CMAKE_ARGS "-DVARTYPES_BUILD_STATIC=ON;-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>;-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
   if(NOT "${CMAKE_TOOLCHAIN_FILE}" STREQUAL "")
     set(VARTYPES_CMAKE_ARGS "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};${VARTYPES_CMAKE_ARGS}")
   endif()
@@ -314,6 +315,11 @@ if(BUILD_TESTING)
     add_test(NAME collision_regression COMMAND grSim_collision_test)
     set_tests_properties(collision_regression PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+    add_executable(grSim_geometry_test tests/geometry_regression.cpp)
+    target_link_libraries(grSim_geometry_test grSim_core)
+    add_test(NAME geometry_regression COMMAND grSim_geometry_test)
+    set_tests_properties(geometry_regression PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 15)
 endif()
 
 if(APPLE AND CMAKE_MACOSX_BUNDLE)
