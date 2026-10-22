@@ -237,11 +237,11 @@ void MainWindow::changeCurrentRobot()
     glwidget->Current_robot = robotwidget->robotCombo->currentIndex();
     glwidget->refreshSnapshot();
     const int index = robotIndex(glwidget->Current_robot, glwidget->Current_team);
+    robotwidget->id = index;
     const auto* robot = glwidget->robotSnapshot(index);
     if (!robot) return;
     QImage image = glwidget->robotImage(index);
     robotwidget->setPicture(&image);
-    robotwidget->id = index;
     robotwidget->changeRobotOnOff(index, robot->on);
 }
 
@@ -313,10 +313,10 @@ void MainWindow::recordRenderedFrame()
 
 void MainWindow::updateUI()
 {
-    glwidget->refreshSnapshot();
-    const auto snapshot = glwidget->scene();
+    const auto snapshot = glwidget->refreshSnapshot();
     if (!snapshot) return;
     const int index = robotIndex(glwidget->Current_robot, glwidget->Current_team);
+    robotwidget->id = index;
     const auto* robot = glwidget->robotSnapshot(index);
     if (robot) {
         if (previousGeneration != snapshot->generation || previousRobot != index) {

@@ -57,7 +57,7 @@ public:
     ConfigWidget* cfg;   
     SimulationController* simulation;
     SceneSnapshotPtr scene() const { return simulation->latest(); }
-    void refreshSnapshot();
+    SceneSnapshotPtr refreshSnapshot();
     int robotIndex(int id, int team) const;
     const RobotSnapshot* robotSnapshot(int index) const;
     QImage robotImage(int index) const;

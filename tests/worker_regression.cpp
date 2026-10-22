@@ -24,12 +24,12 @@ static void captureQtMessages(QtMsgType, const QMessageLogContext&, const QStrin
     std::fprintf(stderr, "%s\n", text.toLocal8Bit().constData());
 }
 
-static bool waitFor(const std::function<bool()>& predicate, int timeout = 2000)
+static bool waitFor(const std::function<bool()>& predicate, int timeout = 2000, bool deliverGuiEvents = true)
 {
     QElapsedTimer clock;
     clock.start();
     while (clock.elapsed() < timeout) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        if (deliverGuiEvents) QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
         if (predicate()) return true;
         QThread::msleep(1);
     }
@@ -184,9 +184,29 @@ int main(int argc, char** argv)
         return std::hypot(robot.velocity[0], robot.velocity[1]) < 0.05;
     }), "robots stop after one second without commands") && passed;
 
+    auto* panel = window->findChild<RobotWidget*>();
+    config->v_Robots_Count->setInt(6);
+    window->changeRobotCount();
+    waitFor([&]() { return controller->latest()->robots.size() == 12; });
+    panel->teamCombo->setCurrentIndex(1);
+    panel->robotCombo->setCurrentIndex(0);
+    window->changeCurrentRobot();
+    passed = check(panel->id == 6, "yellow robot zero initially uses the six-robot team offset") && passed;
+    config->v_Robots_Count->setInt(5);
+    window->changeRobotCount();
+    waitFor([&]() { return controller->latest()->robots.size() == 10; }, 2000, false);
+    window->updateUI();
+    passed = check(panel->id == 5, "robot panel follows the selected robot after an asynchronous count reset") && passed;
+    view->switchRobotOnOff();
+    waitFor([&]() { return !controller->latest()->robots[5].on; }, 2000, false);
+    window->updateUI();
+    passed = check(panel->onOffBtn->text() == "Turn on", "robot panel button reflects on/off after the count reset") && passed;
+
     config->v_Robots_Count->setInt(0);
     window->changeRobotCount();
     passed = check(waitFor([&]() { return controller->latest()->robots.empty(); }), "zero-robot reset") && passed;
+    window->updateUI();
+    passed = check(panel->id == -1, "zero-robot reset clears the panel ID") && passed;
     config->v_Robots_Count->setInt(2);
     window->changeRobotCount();
     passed = check(waitFor([&]() { return controller->latest()->robots.size() == 4; }), "robot-count reset") && passed;

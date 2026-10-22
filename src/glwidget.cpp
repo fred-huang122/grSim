@@ -154,10 +154,10 @@ GLWidget::~GLWidget()
     doneCurrent();
 }
 
-void GLWidget::refreshSnapshot()
+SceneSnapshotPtr GLWidget::refreshSnapshot()
 {
     auto latest = scene();
-    if (!latest) return;
+    if (!latest) return snapshot;
     if (!snapshot || latest->generation != snapshot->generation) {
         selected = clicked_robot = moving_robot_id = -1;
         showCursor = false;
@@ -171,6 +171,7 @@ void GLWidget::refreshSnapshot()
         lagWarning->adjustSize();
         lagWarning->move(qMax(8, width() - lagWarning->width() - 8), 8);
     }
+    return snapshot;
 }
 
 int GLWidget::robotIndex(int id, int team) const
