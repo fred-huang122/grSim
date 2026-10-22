@@ -45,12 +45,15 @@ class CStatusText
     int size;
 };
 
-class CStatusPrinter
+class CStatusPrinter : public QObject
 {
+    Q_OBJECT
     public:
-    CStatusPrinter() {}
+    explicit CStatusPrinter(QObject* parent = nullptr) : QObject(parent) {}
 
     QQueue<CStatusText> textBuffer;
+public slots:
+    void enqueue(QString text, QColor color) { textBuffer.enqueue(CStatusText(text, color)); }
 };
 
 

@@ -41,12 +41,25 @@ private:
     int _width,_height;
     QGLWidget* owner;
     int sphere_quality;
-    void _drawBox (const dReal sides[3]);
+    bool m_lowLod;
+    GLuint m_boxList = 0, m_sphereList = 0;
+    GLuint m_normalCylinderList = 0, m_lowCylinderList = 0;
+    // Quality, chassis/wheel. Each entry contains body, top and bottom lists.
+    GLuint m_texturedCylinderLists[2][2] = {};
+    // Field marking display list cache
+    GLuint m_fieldList;
+    dReal m_fieldCacheRad, m_fieldCacheLength, m_fieldCacheWidth;
+    dReal m_fieldCachePenDepth, m_fieldCachePenWidth, m_fieldCachePenPoint;
+    dReal m_fieldCacheLineWidth, m_fieldCacheEpsilon;
+    // Skybox display list cache
+    GLuint m_skyboxList;
+    int m_skyboxCacheT1;
+    void _drawBox ();
     void _drawPatch (dReal p1[3], dReal p2[3], dReal p3[3], int level);
     void _drawSphere();
     void _drawCapsule (dReal l, dReal r);
-    void _drawCylinder (dReal l, dReal r, dReal zoffset);
-    void _drawCylinder_TopTextured (dReal l, dReal r, dReal zoffset,int tex_id,bool robot=false);
+    void _drawCylinder (bool lowLod = false);
+    void _drawCylinder_TopTextured (int tex_id, bool robot);
     void wrapCameraAngles();
     void setCamera (dReal x, dReal y, dReal z, dReal h, dReal p, dReal r);
     bool graphicDisabled;
@@ -56,6 +69,7 @@ public:
     void disableGraphics();
     void enableGraphics();
     bool isGraphicsEnabled();
+    void clearTextures();
     int loadTexture(QImage* img);
     int loadTextureSkyBox(QImage* img);
     void setViewpoint (dReal xyz[3], dReal hpr[3]);
@@ -73,6 +87,7 @@ public:
     void zoomCamera(dReal dz);
     void setColor (dReal r, dReal g, dReal b, dReal alpha);
     void setSphereQuality(int q);
+    void setLowLod(bool lowLod);
     void setShadow(bool state);
     void useTexture(int tex_id);
     void noTexture();

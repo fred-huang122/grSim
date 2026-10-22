@@ -17,6 +17,7 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 */
 
 #include "pobject.h"
+#include <algorithm>
 
 PObject::PObject(dReal x,dReal y,dReal z,dReal red,dReal green,dReal blue,dReal mass)
 {
@@ -165,12 +166,20 @@ void PObject::setMass(dReal mass)
     m_mass = mass;
 }
 
-void PObject::glinit()
+RenderPrimitive PObject::renderPrimitive() const
 {
+    RenderPrimitive result;
+    result.color = {{m_red, m_green, m_blue}};
+    result.visible = visible;
+    result.robotIndex = robotIndex;
+    result.robotChassis = robotChassis;
+    const dReal* pos = nullptr;
+    const dReal* rot = nullptr;
+    if (body) { pos = dBodyGetPosition(body); rot = dBodyGetRotation(body); }
+    else if (geom && dGeomGetClass(geom) == dBoxClass) {
+        pos = dGeomGetPosition(geom); rot = dGeomGetRotation(geom);
+    }
+    if (pos) std::copy(pos, pos + 3, result.position.begin());
+    if (rot) std::copy(rot, rot + 12, result.rotation.begin());
+    return result;
 }
-
-void PObject::draw()
-{
-    g->setColor(m_red,m_green,m_blue,1);
-}
-

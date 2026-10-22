@@ -19,12 +19,15 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #include "configwidget.h"
 
 #include <memory>
+#include <QTimer>
 
 #define ADD_ENUM(type,name,Defaultvalue,namestring) \
-    v_##name = std::shared_ptr<VarTypes::Var##type>(new VarTypes::Var##type(namestring,Defaultvalue));
+    v_##name = std::shared_ptr<VarTypes::Var##type>(new VarTypes::Var##type(namestring,Defaultvalue)); \
+    connect(v_##name.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(queueSettingsEdited()));
 #define ADD_VALUE(parent,type,name,defaultvalue,namestring) \
     v_##name = std::shared_ptr<VarTypes::Var##type>(new VarTypes::Var##type(namestring,defaultvalue)); \
-    parent->addChild(v_##name);
+    parent->addChild(v_##name); \
+    connect(v_##name.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(queueSettingsEdited()));
 
 #define END_ENUM(parents, name) \
     parents->addChild(v_##name);
@@ -32,7 +35,9 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
     v_##name->addItem(str);
 
 
-ConfigWidget::ConfigWidget() {
+ConfigWidget::ConfigWidget(bool persist, const QString& settingsPath)
+    : persistSettings(persist), settingsFile(settingsPath.isEmpty()
+          ? QDir::homePath() + QString("/.grsim.xml") : settingsPath) {
   tmodel=new VarTreeModel();
   this->setModel(tmodel);  
   geo_vars = std::make_shared<VarList>("Geometry");
@@ -106,11 +111,12 @@ ConfigWidget::ConfigWidget() {
   world.push_back(phys_vars);
     VarListPtr worldp_vars(new VarList("World"));
     phys_vars->addChild(worldp_vars);  
+        // VarXML uses these names as persistent keys.
         ADD_VALUE(worldp_vars,Double,DesiredFPS,60,"Desired FPS")
-        ADD_VALUE(worldp_vars,Bool,SyncWithGL,false,"Synchronize ODE with OpenGL")
         ADD_VALUE(worldp_vars,Double,DeltaTime,1.0/60,"ODE time step")
         ADD_VALUE(worldp_vars,Double,Gravity,9.81,"Gravity")
         ADD_VALUE(worldp_vars,Bool,ResetTurnOver,true,"Auto reset turn-over")
+        ADD_VALUE(worldp_vars,Bool,LowSpecMode,false,"Low Spec Mode")
   VarListPtr ballp_vars(new VarList("Ball"));
     phys_vars->addChild(ballp_vars);
         ADD_VALUE(ballp_vars,Double,BallMass,0.043,"Ball mass");
@@ -154,7 +160,30 @@ ConfigWidget::ConfigWidget() {
         ADD_VALUE(vanishing_vars,Double,yellow_team_vanishing,0,"Yellow team")
         ADD_VALUE(vanishing_vars,Double,ball_vanishing,0,"Ball")
 
-    world=VarXML::read(world,(QDir::homePath() + QString("/.grsim.xml")).toStdString());
+    bool fpsLoaded = false, stepLoaded = false;
+    const auto fpsRead = connect(v_DesiredFPS.get(), &VarType::XMLwasRead, this,
+                                 [&]() { fpsLoaded = true; });
+    const auto stepRead = connect(v_DeltaTime.get(), &VarType::XMLwasRead, this,
+                                  [&]() { stepLoaded = true; });
+    if (persistSettings)
+        world=VarXML::read(world,settingsFile.toStdString());
+    disconnect(fpsRead);
+    disconnect(stepRead);
+
+    // Also accept files saved by the intermediate PR version. Remove aliases
+    // and the retired synchronization option so they cannot appear as controls.
+    // When both keys are present, keep the value saved under the stable name.
+    auto migrateAlias = [&](const char* name, const std::shared_ptr<VarDouble>& setting, bool loaded) {
+        auto saved = std::dynamic_pointer_cast<VarDouble>(worldp_vars->findChild(name));
+        if (saved) {
+            if (!loaded) setting->setDouble(saved->getDouble());
+            worldp_vars->removeChild(saved);
+        }
+    };
+    migrateAlias("Render FPS Cap", v_DesiredFPS, fpsLoaded);
+    migrateAlias("Physics Time Step (s)", v_DeltaTime, stepLoaded);
+    const auto synchronization = worldp_vars->findChild("Synchronize ODE with OpenGL");
+    if (synchronization) worldp_vars->removeChild(synchronization);
 
 
     std::string blueteam = v_BlueTeam->getString();
@@ -201,14 +230,21 @@ ConfigWidget::ConfigWidget() {
   this->fitColumns();
 
   resize(320,400);
-  connect(v_BlueTeam.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(loadRobotsSettings()));
-  connect(v_YellowTeam.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(loadRobotsSettings()));
+  connect(v_BlueTeam.get(), &VarType::wasEdited, this, [this]() {
+      loadRobotSettings(BlueTeam().c_str());
+      blueSettings = robotSettings;
+  });
+  connect(v_YellowTeam.get(), &VarType::wasEdited, this, [this]() {
+      loadRobotSettings(YellowTeam().c_str());
+      yellowSettings = robotSettings;
+  });
   loadRobotsSettings();
 }
 
 ConfigWidget::~ConfigWidget() {
     delete robot_settings;
-    VarXML::write(world,(QDir::homePath() + QString("/.grsim.xml")).toStdString());
+    if (persistSettings)
+        VarXML::write(world,settingsFile.toStdString());
 }
 
 
@@ -276,4 +312,93 @@ void ConfigWidget::loadRobotSettings(QString team)
     robotSettings.AccBrakeAngularMax = robot_settings->value("Physics/AccBrakeAngularMax", 50).toDouble();
     robotSettings.VelAbsoluteMax = robot_settings->value("Physics/VelAbsoluteMax", 5).toDouble();
     robotSettings.VelAngularMax = robot_settings->value("Physics/VelAngularMax", 20).toDouble();
+}
+
+SimulationSettings ConfigWidget::simulationSettings()
+{
+    SimulationSettings result;
+    result.value_Robots_Count = Robots_Count();
+    result.value_Camera_Height = Camera_Height();
+    result.value_Camera_Focal_Length = Camera_Focal_Length();
+    result.value_Camera_Scaling_Limit = Camera_Scaling_Limit();
+    result.value_BallRadius = BallRadius();
+    result.value_BallMass = BallMass();
+    result.value_BallFriction = BallFriction();
+    result.value_BallSlip = BallSlip();
+    result.value_BallBounce = BallBounce();
+    result.value_BallBounceVel = BallBounceVel();
+    result.value_BallLinearDamp = BallLinearDamp();
+    result.value_BallAngularDamp = BallAngularDamp();
+    result.value_BallProjectAirborne = BallProjectAirborne();
+    result.value_BallModelTwoPhaseAccSlide = BallModelTwoPhaseAccSlide();
+    result.value_BallModelTwoPhaseAccRoll = BallModelTwoPhaseAccRoll();
+    result.value_BallModelTwoPhaseKSwitch = BallModelTwoPhaseKSwitch();
+    result.value_BallModelChipFixedLossDampingXyFirstHop = BallModelChipFixedLossDampingXyFirstHop();
+    result.value_BallModelChipFixedLossDampingXyOtherHops = BallModelChipFixedLossDampingXyOtherHops();
+    result.value_BallModelChipFixedLossDampingZ = BallModelChipFixedLossDampingZ();
+    result.value_DesiredFPS = DesiredFPS();
+    result.value_DeltaTime = DeltaTime();
+    result.value_LowSpecMode = LowSpecMode();
+    result.value_sendGeometryEvery = sendGeometryEvery();
+    result.value_Gravity = Gravity();
+    result.value_ResetTurnOver = ResetTurnOver();
+    result.value_VisionMulticastAddr = VisionMulticastAddr();
+    result.value_VisionMulticastPort = VisionMulticastPort();
+    result.value_CommandListenPort = CommandListenPort();
+    result.value_BlueStatusSendPort = BlueStatusSendPort();
+    result.value_YellowStatusSendPort = YellowStatusSendPort();
+    result.value_SimControlListenPort = SimControlListenPort();
+    result.value_BlueControlListenPort = BlueControlListenPort();
+    result.value_YellowControlListenPort = YellowControlListenPort();
+    result.value_sendDelay = sendDelay();
+    result.value_noise = noise();
+    result.value_noiseDeviation_x = noiseDeviation_x();
+    result.value_noiseDeviation_y = noiseDeviation_y();
+    result.value_noiseDeviation_angle = noiseDeviation_angle();
+    result.value_vanishing = vanishing();
+    result.value_ball_vanishing = ball_vanishing();
+    result.value_blue_team_vanishing = blue_team_vanishing();
+    result.value_yellow_team_vanishing = yellow_team_vanishing();
+    result.value_ColorRobotBlue = ColorRobotBlue();
+    result.value_ColorRobotYellow = ColorRobotYellow();
+    result.value_Field_Line_Width = Field_Line_Width();
+    result.value_Field_Length = Field_Length();
+    result.value_Field_Width = Field_Width();
+    result.value_Field_Rad = Field_Rad();
+    result.value_Field_Free_Kick = Field_Free_Kick();
+    result.value_Field_Penalty_Width = Field_Penalty_Width();
+    result.value_Field_Penalty_Depth = Field_Penalty_Depth();
+    result.value_Field_Penalty_Point = Field_Penalty_Point();
+    result.value_Field_Margin = Field_Margin();
+    result.value_Field_Referee_Margin = Field_Referee_Margin();
+    result.value_Wall_Thickness = Wall_Thickness();
+    result.value_Goal_Thickness = Goal_Thickness();
+    result.value_Goal_Depth = Goal_Depth();
+    result.value_Goal_Width = Goal_Width();
+    result.value_Goal_Height = Goal_Height();
+    result.value_Division = Division();
+    result.value_YellowTeam = YellowTeam();
+    result.value_BlueTeam = BlueTeam();
+    result.blueSettings = blueSettings;
+    result.yellowSettings = yellowSettings;
+    result.robotSettings = robotSettings;
+    return result;
+}
+
+void ConfigWidget::applyRemoteSettings(const SimulationSettings& settings)
+{
+    // A preset selection may still be waiting for its coalesced settingsEdited
+    // notification. Keep it until the controller has received the new team name.
+    if (settings.BlueTeam() == BlueTeam()) blueSettings = settings.blueSettings;
+    if (settings.YellowTeam() == YellowTeam()) yellowSettings = settings.yellowSettings;
+}
+
+void ConfigWidget::queueSettingsEdited()
+{
+    if (settingsNotificationPending) return;
+    settingsNotificationPending = true;
+    QTimer::singleShot(0, this, [this]() {
+        settingsNotificationPending = false;
+        emit settingsEdited();
+    });
 }

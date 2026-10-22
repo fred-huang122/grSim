@@ -37,14 +37,15 @@ void PGround::init()
     geom = dCreatePlane (space,0,0,1,0);
 }
 
-void PGround::draw()
+RenderPrimitive PGround::renderPrimitive() const
 {
-    PObject::draw();
-    g->useTexture(tex);
-    g->drawGround();
-    g->noTexture();
-    g->drawSSLGround(rad,len,wid,pdep,pwid,ppoint,lwidth,0.0001);
+    RenderPrimitive result = PObject::renderPrimitive();
+    result.kind = PrimitiveKind::Ground;
+    result.dimensions = {{0, 0, 0}};
+    result.texture = tex;
+    return result;
 }
+
 
 PGround::~PGround()
 {

@@ -41,7 +41,7 @@ public:
     QPushButton *resetBtn,*locateBtn;
     QPushButton *onOffBtn,*setPoseBtn;
     GetPositionWidget* getPoseWidget;
-    int id;
+    int id = -1;
 public slots:
     void changeRobotOnOff(int,bool);
     void setPoseBtnClicked();

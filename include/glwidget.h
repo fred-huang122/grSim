@@ -21,10 +21,13 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 
 #define GL_SILENCE_DEPRECATION
 #include <QGLWidget>
-#include <QTime>
+#include <QGLFramebufferObject>
+#include <QLabel>
+#include <QFrame>
+#include "simulation.h"
+#include "scenerenderer.h"
 #include <QMenu>
 
-#include "sslworld.h"
 #include "configwidget.h"
 
 
@@ -49,12 +52,19 @@ public:
         LOCK_TO_ROBOT = -1,
         LOCK_TO_BALL = -2,
     };
-    GLWidget(QWidget *parent,ConfigWidget* _cfg);
+    GLWidget(QWidget *parent, ConfigWidget* cfg, SimulationController* simulation);
     ~GLWidget();
-    dReal getFPS();
     ConfigWidget* cfg;   
-    SSLWorld* ssl;
-    RobotsFormation* forms[4];
+    SimulationController* simulation;
+    SceneSnapshotPtr scene() const { return simulation->latest(); }
+    SceneSnapshotPtr refreshSnapshot();
+    int robotIndex(int id, int team) const;
+    const RobotSnapshot* robotSnapshot(int index) const;
+    QImage robotImage(int index) const;
+    void sendAction(SimulationAction action);
+    bool graphicsEnabled = true;
+    int selected = -1;
+    std::array<double, 3> cursor{{0, 0, 0}};
     QMenu* robpopup,*ballpopup,*mainpopup;
     QMenu *blueRobotsMenu,*yellowRobotsMenu,*allRobotsMenu;
     QAction* moveRobotAct;
@@ -76,7 +86,6 @@ public:
     void update3DCursor(int mouse_x,int mouse_y);
     void putBall(dReal x,dReal y);
     void reform(int team,const QString& act);    
-    void step();
 public slots:
     void moveRobot();
     void selectRobot();
@@ -93,11 +102,16 @@ public slots:
     void lockCameraToRobot();
     void lockCameraToBall();
 signals:
+    void frameRendered();
     void clicked();
     void selectedRobot();
     void closeSignal(bool);
     void robotTurnedOnOff(int,bool);
 protected:
+    virtual bool hasFramebufferObjects() const;
+    virtual bool hasFramebufferBlit() const;
+    void resizeEvent(QResizeEvent* event) override;
+    void resizeGL(int width, int height) override;
     void paintGL ();
     void initializeGL ();        
 
@@ -112,11 +126,15 @@ private:
     CursorMode state;
     CameraMode cammode;
     int moving_robot_id,clicked_robot;
-    int frames;
-    bool first_time;
-    QTime time,rendertimer;
-    dReal m_fps;
+    SceneSnapshotPtr snapshot;
+    SceneRenderer renderer;
+    QWidget* lagWarning;
+    bool showCursor = false;
+    double cursorRadius = 0;
+    bool hasRendered = false;
     QPoint lastPos;
+
+    QGLFramebufferObject* m_fbo;
 };
 
 #endif // WIDGET_H

@@ -36,11 +36,9 @@ void nearCallback (void *data, dGeomID o1, dGeomID o2)
 }
 
 
-PWorld::PWorld(dReal dt,dReal gravity,CGraphics* graphics, int _robot_count)
+PWorld::PWorld(dReal dt,dReal gravity, int _robot_count)
 {
     robot_count = _robot_count;
-    //dInitODE2(0);
-    dInitODE();
     world = dWorldCreate();
     space = dHashSpaceCreate (0);
     contactgroup = dJointGroupCreate (0);
@@ -49,15 +47,17 @@ PWorld::PWorld(dReal dt,dReal gravity,CGraphics* graphics, int _robot_count)
     sur_matrix = NULL;
     //dAllocateODEDataForThread(dAllocateMaskAll);
     delta_time = dt;
-    g = graphics;
 }
 
 PWorld::~PWorld()
 {
   dJointGroupDestroy (contactgroup);
+  qDeleteAll(objects);
+  qDeleteAll(surfaces);
+  for (int i = 0; i < objects_count; ++i) delete[] sur_matrix[i];
+  delete[] sur_matrix;
   dSpaceDestroy (space);
   dWorldDestroy (world);
-  dCloseODE();
 }
 
 void PWorld::setGravity(dReal gravity)
@@ -111,7 +111,6 @@ void PWorld::addObject(PObject* o)
     o->id = id;
     if (o->world==NULL) o->world = world;
     if (o->space==NULL) o->space = space;
-    o->g = g;
     o->init();
     dGeomSetData(o->geom,(void*)(&(o->id)));
     objects.append(o);
@@ -125,8 +124,8 @@ void PWorld::initAllObjects()
     if (sur_matrix!=NULL)
     {
         for (int i=0;i<c;i++)
-            delete sur_matrix[i];
-        delete sur_matrix;
+            delete[] sur_matrix[i];
+        delete[] sur_matrix;
         flag = true;
     }    
     sur_matrix = new int* [c];
@@ -176,15 +175,10 @@ void PWorld::step(dReal dt)
     }
 }
 
-void PWorld::draw()
+std::vector<RenderPrimitive> PWorld::renderPrimitives() const
 {
-    for (int i=0;i<objects.count();i++)
-        if (objects[i]->getVisibility()) objects[i]->draw();
+    std::vector<RenderPrimitive> result;
+    result.reserve(objects.size());
+    for (const auto* object : objects) result.push_back(object->renderPrimitive());
+    return result;
 }
-
-void PWorld::glinit()
-{
-    for (int i=0;i<objects.count();i++)
-        objects[i]->glinit();
-}
-

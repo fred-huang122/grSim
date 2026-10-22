@@ -36,9 +36,10 @@ void PFixedBox::init()
     initPosGeom();
 }
 
-void PFixedBox::draw()
+RenderPrimitive PFixedBox::renderPrimitive() const
 {
-    PObject::draw();
-    dReal dim[3] = {m_w,m_h,m_l};
-    g->drawBox (dGeomGetPosition(geom),dGeomGetRotation(geom),dim);
+    RenderPrimitive result = PObject::renderPrimitive();
+    result.kind = PrimitiveKind::Box;
+    result.dimensions = {{m_w, m_h, m_l}};
+    return result;
 }

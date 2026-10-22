@@ -48,6 +48,41 @@ Sending data to the simulator is also possible using Google Protobuf. Sample cli
 
 Qt [example project](https://github.com/robocin/ssl-client) to receive and send data to the simulator.
 
+Physics and command handling run independently of the display. The render FPS cap
+does not change the configured physics timestep. If physics cannot keep up with
+real time, a small amber **Lag** warning appears in the top-right corner of the
+view. The simulator retains pending physics steps and gives them priority over
+rendering. The warning clears after it catches up.
+
+Regression tests
+----------------
+
+Build the tests with `cmake -S . -B build -DBUILD_TESTING=ON`, then
+`cmake --build build`. Run `ctest --output-on-failure` from the build directory.
+The timing tests use loopback UDP and an independent observer process. Rendering
+tests need a working OpenGL display; Linux CI uses Mesa and
+`xvfb-run -a ctest --output-on-failure`. Timing is checked both headlessly and
+with real OpenGL drawing, a 90 ms delay per rendered frame, and a 500 ms GUI
+stall. The observer checks packet freshness at the end and requires every sent
+command to receive feedback; a separate fixture verifies that a silent final
+500 ms fails.
+
+Capture checks detect blank images through size, opacity, and color diversity;
+they do not verify textures, field markings, or visual fidelity. OpenGL feedback
+checks separately verify that Low Spec reduces textured wheel and chassis
+geometry. Settings tests load historical XML keys and check save/reload behavior.
+Configuration tests delay GUI notifications while remote robot specifications
+and GUI edits interleave, including queued preset selections.
+Collision tests check side and rear ball contact, dribbler access, roller
+retention while stationary and moving, and flat/chip kicks for separate team
+sizes and rotated robots, including ball acquisition with recessed dribblers.
+The ball-contact hull keeps the body outline and cuts its front back when needed
+to reach the configured dribbler. Render quality does not change this shape.
+Tests use temporary configuration values without reading or writing personal
+simulator settings. In the configuration tree, **Desired FPS** caps rendering and
+**ODE time step** sets the fixed physics step; their names remain stable for saved
+settings compatibility.
+
 Star History
 ------
 [![Star History Chart](https://api.star-history.com/svg?repos=robocup-ssl/grsim&type=Date)](https://star-history.com/#robocup-ssl/grsim&Date)
