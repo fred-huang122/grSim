@@ -15,6 +15,8 @@ ExternalProject_Add(ode_external
                       -DCMAKE_MAKE_PROGRAM:PATH=${CMAKE_MAKE_PROGRAM}
                       # necessary, because it does not build the static libs if this is ON
                       -DBUILD_SHARED_LIBS=OFF
+                      # grSim needs the library; ODE's demos fail to compile with Clang.
+                      -DODE_WITH_DEMOS=OFF
                       # if this is OFF grSim just dies instantly and INSTALL.md says it should be ON
                       -DODE_DOUBLE_PRECISION=ON
                       -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
