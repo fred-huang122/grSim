@@ -230,8 +230,14 @@ ConfigWidget::ConfigWidget(bool persist, const QString& settingsPath)
   this->fitColumns();
 
   resize(320,400);
-  connect(v_BlueTeam.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(loadRobotsSettings()));
-  connect(v_YellowTeam.get(), SIGNAL(wasEdited(VarPtr)), this, SLOT(loadRobotsSettings()));
+  connect(v_BlueTeam.get(), &VarType::wasEdited, this, [this]() {
+      loadRobotSettings(BlueTeam().c_str());
+      blueSettings = robotSettings;
+  });
+  connect(v_YellowTeam.get(), &VarType::wasEdited, this, [this]() {
+      loadRobotSettings(YellowTeam().c_str());
+      yellowSettings = robotSettings;
+  });
   loadRobotsSettings();
 }
 
@@ -381,8 +387,10 @@ SimulationSettings ConfigWidget::simulationSettings()
 
 void ConfigWidget::applyRemoteSettings(const SimulationSettings& settings)
 {
-    blueSettings = settings.blueSettings;
-    yellowSettings = settings.yellowSettings;
+    // A preset selection may still be waiting for its coalesced settingsEdited
+    // notification. Keep it until the controller has received the new team name.
+    if (settings.BlueTeam() == BlueTeam()) blueSettings = settings.blueSettings;
+    if (settings.YellowTeam() == YellowTeam()) yellowSettings = settings.yellowSettings;
 }
 
 void ConfigWidget::queueSettingsEdited()

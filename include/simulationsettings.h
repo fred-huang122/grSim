@@ -1,6 +1,7 @@
 #ifndef SIMULATIONSETTINGS_H
 #define SIMULATIONSETTINGS_H
 
+#include <array>
 #include <string>
 #include <QMetaType>
 
@@ -41,40 +42,38 @@ public:
     double VelAbsoluteMax;
     double VelAngularMax;
     bool operator==(const RobotSettings& other) const {
-        return RobotCenterFromKicker == other.RobotCenterFromKicker
-            && RobotRadius == other.RobotRadius
-            && RobotHeight == other.RobotHeight
-            && BottomHeight == other.BottomHeight
-            && KickerZ == other.KickerZ
-            && KickerThickness == other.KickerThickness
-            && KickerWidth == other.KickerWidth
-            && KickerHeight == other.KickerHeight
-            && WheelRadius == other.WheelRadius
-            && WheelThickness == other.WheelThickness
-            && Wheel1Angle == other.Wheel1Angle
-            && Wheel2Angle == other.Wheel2Angle
-            && Wheel3Angle == other.Wheel3Angle
-            && Wheel4Angle == other.Wheel4Angle
-            && BodyMass == other.BodyMass
-            && WheelMass == other.WheelMass
-            && KickerMass == other.KickerMass
-            && KickerDampFactor == other.KickerDampFactor
-            && RollerTorqueFactor == other.RollerTorqueFactor
-            && RollerPerpendicularTorqueFactor == other.RollerPerpendicularTorqueFactor
-            && Kicker_Friction == other.Kicker_Friction
-            && WheelTangentFriction == other.WheelTangentFriction
-            && WheelPerpendicularFriction == other.WheelPerpendicularFriction
-            && Wheel_Motor_FMax == other.Wheel_Motor_FMax
-            && MaxLinearKickSpeed == other.MaxLinearKickSpeed
-            && MaxChipKickSpeed == other.MaxChipKickSpeed
-            && AccSpeedupAbsoluteMax == other.AccSpeedupAbsoluteMax
-            && AccSpeedupAngularMax == other.AccSpeedupAngularMax
-            && AccBrakeAbsoluteMax == other.AccBrakeAbsoluteMax
-            && AccBrakeAngularMax == other.AccBrakeAngularMax
-            && VelAbsoluteMax == other.VelAbsoluteMax
-            && VelAngularMax == other.VelAngularMax;
+        for (auto member : members())
+            if (this->*member != other.*member) return false;
+        return true;
     }
 
+    void applyChanges(const RobotSettings& before, const RobotSettings& after) {
+        for (auto member : members())
+            if (before.*member != after.*member) this->*member = after.*member;
+    }
+
+private:
+    static const std::array<double RobotSettings::*, 32>& members() {
+        static const std::array<double RobotSettings::*, 32> values{{
+            &RobotSettings::RobotCenterFromKicker, &RobotSettings::RobotRadius,
+            &RobotSettings::RobotHeight, &RobotSettings::BottomHeight,
+            &RobotSettings::KickerZ, &RobotSettings::KickerThickness,
+            &RobotSettings::KickerWidth, &RobotSettings::KickerHeight,
+            &RobotSettings::WheelRadius, &RobotSettings::WheelThickness,
+            &RobotSettings::Wheel1Angle, &RobotSettings::Wheel2Angle,
+            &RobotSettings::Wheel3Angle, &RobotSettings::Wheel4Angle,
+            &RobotSettings::BodyMass, &RobotSettings::WheelMass, &RobotSettings::KickerMass,
+            &RobotSettings::KickerDampFactor, &RobotSettings::RollerTorqueFactor,
+            &RobotSettings::RollerPerpendicularTorqueFactor, &RobotSettings::Kicker_Friction,
+            &RobotSettings::WheelTangentFriction, &RobotSettings::WheelPerpendicularFriction,
+            &RobotSettings::Wheel_Motor_FMax, &RobotSettings::MaxLinearKickSpeed,
+            &RobotSettings::MaxChipKickSpeed, &RobotSettings::AccSpeedupAbsoluteMax,
+            &RobotSettings::AccSpeedupAngularMax, &RobotSettings::AccBrakeAbsoluteMax,
+            &RobotSettings::AccBrakeAngularMax, &RobotSettings::VelAbsoluteMax,
+            &RobotSettings::VelAngularMax
+        }};
+        return values;
+    }
 };
 
 

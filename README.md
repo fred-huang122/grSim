@@ -71,6 +71,8 @@ Capture checks detect blank images through size, opacity, and color diversity;
 they do not verify textures, field markings, or visual fidelity. OpenGL feedback
 checks separately verify that Low Spec reduces textured wheel and chassis
 geometry. Settings tests load historical XML keys and check save/reload behavior.
+Configuration tests delay GUI notifications while remote robot specifications
+and GUI edits interleave, including queued preset selections.
 Collision tests check side and rear ball contact, dribbler access, roller
 retention while stationary and moving, and flat/chip kicks for separate team
 sizes and rotated robots. Ball contact uses a fixed chassis hull with a front

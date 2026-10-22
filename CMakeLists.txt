@@ -304,6 +304,11 @@ if(BUILD_TESTING)
     add_test(NAME settings_regression COMMAND grSim_settings_test)
     set_tests_properties(settings_regression PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 10)
+    add_executable(grSim_configuration_test tests/configuration_regression.cpp)
+    target_link_libraries(grSim_configuration_test grSim_core)
+    add_test(NAME configuration_regression COMMAND grSim_configuration_test)
+    set_tests_properties(configuration_regression PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
     add_executable(grSim_collision_test tests/collision_regression.cpp)
     target_link_libraries(grSim_collision_test grSim_core)
     add_test(NAME collision_regression COMMAND grSim_collision_test)

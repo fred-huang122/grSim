@@ -5,11 +5,21 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <deque>
 #include "scenesnapshot.h"
 
 class SSLWorld;
 class QUdpSocket;
 class RoboCupSSLServer;
+
+// Remote RobotSpecs can change while a GUI edit or its acknowledgement is queued.
+struct SimulationSettingsEdit {
+    SimulationSettings before, after;
+    quint64 revision = 0;
+    bool rebuild = false;
+    void applyRobotChanges(SimulationSettings& settings) const;
+};
+Q_DECLARE_METATYPE(SimulationSettingsEdit)
 
 class LagMonitor {
 public:
@@ -26,13 +36,13 @@ public:
     explicit SimulationWorker(std::shared_ptr<SnapshotMailbox> mailbox);
 public slots:
     void start(SimulationSettings settings);
-    void configure(SimulationSettings settings, bool rebuild);
+    void configure(SimulationSettingsEdit edit);
     void act(SimulationAction action);
     void stop();
 private slots:
     void tick();
 signals:
-    void remoteSettingsChanged(SimulationSettings settings);
+    void settingsChanged(SimulationSettings settings, quint64 appliedRevision);
 private:
     void rebuildWorld();
     void connectSockets(const SimulationSettings* previous = nullptr);
@@ -53,6 +63,7 @@ private:
     qint64 lastTick = 0;
     double accumulator = 0, physicsHz = 0;
     quint64 generation = 0;
+    quint64 appliedRevision = 0;
     int stepsThisSecond = 0;
     bool initialized = false;
     LagMonitor lag;
@@ -69,12 +80,16 @@ public:
     void submit(const SimulationAction& action);
     void stop();
 signals:
-    void configureRequested(SimulationSettings settings, bool rebuild);
+    void configureRequested(SimulationSettingsEdit edit);
     void actionRequested(SimulationAction action);
     void remoteSettingsChanged(SimulationSettings settings);
 private:
+    void receiveSettings(SimulationSettings settings, quint64 appliedRevision);
     std::shared_ptr<SnapshotMailbox> mailbox;
     QThread thread;
     SimulationWorker* worker;
+    SimulationSettings guiSettings;
+    quint64 nextRevision = 0;
+    std::deque<SimulationSettingsEdit> pendingEdits;
 };
 #endif

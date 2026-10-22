@@ -40,6 +40,14 @@ bool requiresRebuild(const SimulationSettings& a, const SimulationSettings& b)
 
 }
 
+void SimulationSettingsEdit::applyRobotChanges(SimulationSettings& settings) const
+{
+    if (before.BlueTeam() != after.BlueTeam()) settings.blueSettings = after.blueSettings;
+    else settings.blueSettings.applyChanges(before.blueSettings, after.blueSettings);
+    if (before.YellowTeam() != after.YellowTeam()) settings.yellowSettings = after.yellowSettings;
+    else settings.yellowSettings.applyChanges(before.yellowSettings, after.yellowSettings);
+}
+
 bool LagMonitor::update(double pending, double step, qint64 now)
 {
     const bool behind = pending - step >= 0.050;
@@ -90,7 +98,7 @@ void SimulationWorker::connectSockets(const SimulationSettings* previous)
                 (world->*receive)();
                 if (world->restartRequired) {
                     rebuildWorld();
-                    emit remoteSettingsChanged(settings);
+                    emit settingsChanged(settings, appliedRevision);
                 }
             });
         } else if (port == oldPort) return;
@@ -137,19 +145,27 @@ void SimulationWorker::rebuildWorld()
     publish();
 }
 
-void SimulationWorker::configure(SimulationSettings value, bool rebuild)
+void SimulationWorker::configure(SimulationSettingsEdit edit)
 {
     if (!world) return;
+    appliedRevision = edit.revision;
+    SimulationSettings value = edit.after;
     if (!std::isfinite(value.DeltaTime()) || value.DeltaTime() <= 0 ||
         value.Robots_Count() < 0 || value.Robots_Count() > MAX_ROBOT_COUNT) {
         logStatus("Invalid simulation timestep or robot count", QColor("red"));
+        emit settingsChanged(settings, appliedRevision);
         return;
     }
     value.value_sendGeometryEvery = qMax(4, value.sendGeometryEvery());
     const SimulationSettings previous = settings;
+    // Only robot fields can be edited remotely. Keep their current worker values
+    // unless this GUI edit changed the field or explicitly selected a preset.
+    value.blueSettings = settings.blueSettings;
+    value.yellowSettings = settings.yellowSettings;
+    edit.applyRobotChanges(value);
     settings = value;
     connectSockets(&previous);
-    if (rebuild || requiresRebuild(previous, settings)) rebuildWorld();
+    if (edit.rebuild || requiresRebuild(previous, settings)) rebuildWorld();
     else {
         if (previous.Gravity() != settings.Gravity())
             dWorldSetGravity(world->p->world, 0, 0, -settings.Gravity());
@@ -173,6 +189,7 @@ void SimulationWorker::configure(SimulationSettings value, bool rebuild)
         publish();
     }
     if (timer) timer->setInterval(physicsInterval(settings.DeltaTime()));
+    emit settingsChanged(settings, appliedRevision);
 }
 
 void SimulationWorker::expireCommands()
@@ -312,15 +329,17 @@ void SimulationWorker::stop()
 }
 
 SimulationController::SimulationController(const SimulationSettings& settings, QObject* parent)
-    : QObject(parent), mailbox(std::make_shared<SnapshotMailbox>()), worker(new SimulationWorker(mailbox))
+    : QObject(parent), mailbox(std::make_shared<SnapshotMailbox>()),
+      worker(new SimulationWorker(mailbox)), guiSettings(settings)
 {
     qRegisterMetaType<SimulationSettings>();
+    qRegisterMetaType<SimulationSettingsEdit>();
     qRegisterMetaType<SimulationAction>();
     worker->moveToThread(&thread);
     connect(&thread, &QThread::finished, worker, &QObject::deleteLater);
     connect(this, &SimulationController::configureRequested, worker, &SimulationWorker::configure);
     connect(this, &SimulationController::actionRequested, worker, &SimulationWorker::act);
-    connect(worker, &SimulationWorker::remoteSettingsChanged, this, &SimulationController::remoteSettingsChanged);
+    connect(worker, &SimulationWorker::settingsChanged, this, &SimulationController::receiveSettings);
     thread.setObjectName("grSim physics");
     thread.start();
     QMetaObject::invokeMethod(worker, "start", Qt::BlockingQueuedConnection, Q_ARG(SimulationSettings, settings));
@@ -329,7 +348,27 @@ SimulationController::SimulationController(const SimulationSettings& settings, Q
 SimulationController::~SimulationController() { stop(); }
 void SimulationController::configure(const SimulationSettings& settings, bool rebuild)
 {
-    if (thread.isRunning()) emit configureRequested(settings, rebuild);
+    if (!thread.isRunning()) return;
+    SimulationSettingsEdit edit;
+    edit.before = guiSettings;
+    edit.after = settings;
+    edit.revision = ++nextRevision;
+    edit.rebuild = rebuild;
+    pendingEdits.push_back(edit);
+    guiSettings = settings;
+    emit configureRequested(edit);
+}
+
+void SimulationController::receiveSettings(SimulationSettings settings, quint64 appliedRevision)
+{
+    while (!pendingEdits.empty() && pendingEdits.front().revision <= appliedRevision)
+        pendingEdits.pop_front();
+    // Rebase still-pending GUI edits before notifying widgets. Otherwise an older
+    // worker notification could erase a newer edit before the worker applies it.
+    for (const auto& edit : pendingEdits) edit.applyRobotChanges(settings);
+    guiSettings.blueSettings = settings.blueSettings;
+    guiSettings.yellowSettings = settings.yellowSettings;
+    emit remoteSettingsChanged(guiSettings);
 }
 void SimulationController::submit(const SimulationAction& action)
 {
