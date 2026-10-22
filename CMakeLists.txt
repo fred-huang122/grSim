@@ -314,6 +314,11 @@ if(BUILD_TESTING)
     add_test(NAME collision_regression COMMAND grSim_collision_test)
     set_tests_properties(collision_regression PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+    add_executable(grSim_geometry_test tests/geometry_regression.cpp)
+    target_link_libraries(grSim_geometry_test grSim_core)
+    add_test(NAME geometry_regression COMMAND grSim_geometry_test)
+    set_tests_properties(geometry_regression PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 15)
 endif()
 
 if(APPLE AND CMAKE_MACOSX_BUNDLE)

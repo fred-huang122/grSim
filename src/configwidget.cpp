@@ -69,7 +69,9 @@ ConfigWidget::ConfigWidget(bool persist, const QString& settingsPath)
   ADD_VALUE(div_a_vars, Double, DivA_Field_Penalty_Width,3.60,"Penalty width")
   ADD_VALUE(div_a_vars, Double, DivA_Field_Penalty_Depth,1.80,"Penalty depth")
   ADD_VALUE(div_a_vars, Double, DivA_Field_Penalty_Point,8.00,"Penalty point")
-  ADD_VALUE(div_a_vars, Double, DivA_Field_Margin,0.3,"Margin")
+  ADD_VALUE(div_a_vars, Double, DivA_Field_Margin_Touch_Line,0.3,"Margin along the touch lines")
+  ADD_VALUE(div_a_vars, Double, DivA_Field_Margin_Goal_Line,0.6,"Margin behind the goal lines")
+  ADD_VALUE(div_a_vars, Double, DivA_Field_Goal_Substitution_Area_Width,0.3,"Substitution area width behind the goal lines")
   ADD_VALUE(div_a_vars, Double, DivA_Field_Referee_Margin,0.0,"Referee margin")
   ADD_VALUE(div_a_vars, Double, DivA_Wall_Thickness,0.050,"Wall thickness")
   ADD_VALUE(div_a_vars, Double, DivA_Goal_Thickness,0.020,"Goal thickness")
@@ -85,7 +87,9 @@ ConfigWidget::ConfigWidget(bool persist, const QString& settingsPath)
   ADD_VALUE(div_b_vars, Double, DivB_Field_Penalty_Width,2.00,"Penalty width")
   ADD_VALUE(div_b_vars, Double, DivB_Field_Penalty_Depth,1.0,"Penalty depth")
   ADD_VALUE(div_b_vars, Double, DivB_Field_Penalty_Point,6.00,"Penalty point")
-  ADD_VALUE(div_b_vars, Double, DivB_Field_Margin,0.30,"Margin")
+  ADD_VALUE(div_b_vars, Double, DivB_Field_Margin_Touch_Line,0.3,"Margin along the touch lines")
+  ADD_VALUE(div_b_vars, Double, DivB_Field_Margin_Goal_Line,0.3,"Margin behind the goal lines")
+  ADD_VALUE(div_b_vars, Double, DivB_Field_Goal_Substitution_Area_Width,0.0,"Substitution area width behind the goal lines")
   ADD_VALUE(div_b_vars, Double, DivB_Field_Referee_Margin,0.0,"Referee margin")
   ADD_VALUE(div_b_vars, Double, DivB_Wall_Thickness,0.050,"Wall thickness")
   ADD_VALUE(div_b_vars, Double, DivB_Goal_Thickness,0.020,"Goal thickness")
@@ -369,7 +373,9 @@ SimulationSettings ConfigWidget::simulationSettings()
     result.value_Field_Penalty_Width = Field_Penalty_Width();
     result.value_Field_Penalty_Depth = Field_Penalty_Depth();
     result.value_Field_Penalty_Point = Field_Penalty_Point();
-    result.value_Field_Margin = Field_Margin();
+    result.value_Field_Margin_Touch_Line = Field_Margin_Touch_Line();
+    result.value_Field_Margin_Goal_Line = Field_Margin_Goal_Line();
+    result.value_Field_Goal_Substitution_Area_Width = Field_Goal_Substitution_Area_Width();
     result.value_Field_Referee_Margin = Field_Referee_Margin();
     result.value_Wall_Thickness = Wall_Thickness();
     result.value_Goal_Thickness = Goal_Thickness();
