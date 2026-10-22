@@ -19,6 +19,7 @@ Copyright (C) 2011, Parsian Robotic Center (eew.aut.ac.ir/~parsian/grsim)
 #include "graphics.h"
 #include <QImage>
 #include <math.h>
+#include <cmath>
 
 
 // light vector. LIGHTZ is implicitly 1
@@ -1139,89 +1140,68 @@ void CGraphics::_drawCylinder (bool lowLod)
     glCallList(lowLod ? lowList : normalList);
 }
 
-void CGraphics::_drawCylinder_TopTextured (dReal l, dReal r, dReal zoffset,int tex_id,bool robot)
+static void compileTexturedCylinder(int sides, bool robot, int part)
 {
-    //glEnable(GL_BLEND);
-    //glBlendFunc(GL_SRC_COLOR,GL_ONE_MINUS_SRC_COLOR);
-    if (graphicDisabled) return;
-    int i;
-    dReal tmp,ny,nz,a,ca,sa;
-    const int n = 24;	// number of sides to the cylinder (divisible by 4)
-    // Always 24: the vertex-skip logic (i>2 && i<n-2) for the robot flat face is designed for 24 sides
-
-    l *= 0.5;
-    a = dReal(M_PI*2.0)/dReal(n);
-    sa = (dReal) sin(a);
-    ca = (dReal) cos(a);
-
-    // draw cylinder body
-    ny=1; nz=0;		  // normal vector = (0,ny,nz)
-    glBegin (GL_TRIANGLE_STRIP);
-    for (i=0; i<=n; i++) {
-        if ((i>2 && i<n-2) || (!robot)) {
-            glNormal3d (ny,nz,0);
-            glVertex3d (ny*r,nz*r,l+zoffset);
-            glNormal3d (ny,nz,0);
-            glVertex3d (ny*r,nz*r,-l+zoffset);
+    const int first = robot ? sides / 8 : 0;
+    const int last = robot ? sides - first : sides;
+    const double angle = 2 * M_PI / sides;
+    if (part == 0) {
+        glBegin(GL_TRIANGLE_STRIP);
+        for (int i = first; i <= last; ++i) {
+            const double x = std::cos(i * angle), y = std::sin(i * angle);
+            glNormal3d(x, y, 0);
+            glVertex3d(x, y, 0.5);
+            glVertex3d(x, y, -0.5);
         }
-        // rotate ny,nz
-        tmp = ca*ny - sa*nz;
-        nz = sa*ny + ca*nz;
-        ny = tmp;
+        glEnd();
+        if (robot) {
+            // The dribbler opening spans +/-45 degrees at either detail level.
+            const double x = std::cos(first * angle), y = std::sin(first * angle);
+            glBegin(GL_QUADS);
+            glNormal3d(1, 0, 0);
+            glVertex3d(x, -y, 0.5); glVertex3d(x, -y, -0.5);
+            glVertex3d(x, y, -0.5); glVertex3d(x, y, 0.5);
+            glEnd();
+        }
+    } else if (part == 1) {
+        glBegin(GL_TRIANGLE_FAN);
+        glNormal3d(0, 0, 1);
+        for (int i = first; i < (robot ? last + 1 : sides); ++i) {
+            const double x = std::cos(i * angle), y = std::sin(i * angle);
+            glTexCoord2d(-0.5 * y + 0.5, 0.5 * x + 0.5);
+            glVertex3d(x, y, 0.5);
+        }
+        glEnd();
+    } else {
+        glBegin(GL_TRIANGLE_FAN);
+        glNormal3d(0, 0, -1);
+        // Reverse the same boundary to retain the chassis cutout on both caps.
+        for (int i = last; i >= first; --i)
+            glVertex3d(std::cos(i * angle), std::sin(i * angle), -0.5);
+        glEnd();
     }
+}
 
-    for (i=0;i<=1;i++) {
-        tmp = ca*ny - sa*nz;
-        nz = sa*ny + ca*nz;
-        ny = tmp;
+void CGraphics::_drawCylinder_TopTextured(int tex_id, bool robot)
+{
+    if (graphicDisabled) return;
+    GLuint& lists = m_texturedCylinderLists[m_lowLod][robot];
+    if (lists == 0) {
+        lists = glGenLists(3);
+        for (int part = 0; part < 3; ++part) {
+            glNewList(lists + part, GL_COMPILE);
+            compileTexturedCylinder(m_lowLod ? 8 : 24, robot, part);
+            glEndList();
+        }
     }
-    glNormal3d (ny,nz,0);
-    glVertex3d (ny*r,nz*r,l+zoffset);
-    glNormal3d (ny,nz,0);
-    glVertex3d (ny*r,nz*r,-l+zoffset);
-    glEnd();
-
+    glCallList(lists);
     glDisable(GL_LIGHTING);
     useTexture(tex_id);
-
-    // draw top cap
-    glShadeModel (GL_FLAT);
-
-    ny=1; nz=0;		  // normal vector = (0,ny,nz)
-    glBegin (GL_TRIANGLE_FAN);
-
-    for (i=0; i<n; i++) {
-        if ((i>2 && i<n-2)  || (!robot)) {
-            glNormal3d (0,0,1);
-            glTexCoord2f(-0.5*nz+0.5,0.5*ny+0.5);
-            glVertex3d (ny*r,nz*r,l+zoffset);
-        }
-        // rotate ny,nz
-        tmp = ca*ny - sa*nz;
-        nz = sa*ny + ca*nz;
-        ny = tmp;
-    }
-    glEnd();
+    glShadeModel(GL_FLAT);
+    glCallList(lists + 1);
     noTexture();
     glEnable(GL_LIGHTING);
-
-    // draw bottom cap
-    ny=1; nz=0;		  // normal vector = (0,ny,nz)
-    glBegin (GL_TRIANGLE_FAN);
-    glNormal3d (0,0,-1);
-    glVertex3d (0,0,-l+zoffset);
-    for (i=0; i<=n; i++) {
-        if ((i>=2 && i<n-2)  || (!robot)) {
-            glNormal3d (0,0,-1);
-            glVertex3d (ny*r,nz*r,-l+zoffset);
-        }
-        // rotate ny,nz
-        tmp = ca*ny + sa*nz;
-        nz = -sa*ny + ca*nz;
-        ny = tmp;
-    }
-    glEnd();
-    //glDisable(GL_BLEND);
+    glCallList(lists + 2);
 }
 
 
@@ -1270,10 +1250,13 @@ void CGraphics::drawCylinder_TopTextured (const dReal pos[3], const dReal R[12],
                                           dReal length, dReal radius,int tex_id,bool robot)
 {
     if (graphicDisabled) return;
+    glEnable(GL_NORMALIZE);
     glShadeModel (GL_SMOOTH);
     setTransform (pos,R);
-    _drawCylinder_TopTextured (length,radius,0,tex_id,robot);
+    glScaled(radius, radius, length);
+    _drawCylinder_TopTextured(tex_id, robot);
     glPopMatrix();
+    glDisable(GL_NORMALIZE);
 }
 
 void CGraphics::drawCapsule (const dReal pos[3], const dReal R[12],

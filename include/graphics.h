@@ -44,6 +44,8 @@ private:
     bool m_lowLod;
     GLuint m_boxList = 0, m_sphereList = 0;
     GLuint m_normalCylinderList = 0, m_lowCylinderList = 0;
+    // Quality, chassis/wheel. Each entry contains body, top and bottom lists.
+    GLuint m_texturedCylinderLists[2][2] = {};
     // Field marking display list cache
     GLuint m_fieldList;
     dReal m_fieldCacheRad, m_fieldCacheLength, m_fieldCacheWidth;
@@ -57,7 +59,7 @@ private:
     void _drawSphere();
     void _drawCapsule (dReal l, dReal r);
     void _drawCylinder (bool lowLod = false);
-    void _drawCylinder_TopTextured (dReal l, dReal r, dReal zoffset,int tex_id,bool robot=false);
+    void _drawCylinder_TopTextured (int tex_id, bool robot);
     void wrapCameraAngles();
     void setCamera (dReal x, dReal y, dReal z, dReal h, dReal p, dReal r);
     bool graphicDisabled;

@@ -21,7 +21,8 @@ protected:
     bool hasFramebufferBlit() const override { return allowBlit && GLWidget::hasFramebufferBlit(); }
 };
 
-static bool checkImage(const QImage& image, bool low, const QSize& size)
+// These checks detect blank or missing captures, not texture or field fidelity.
+static bool checkNonblankImage(const QImage& image, bool low, const QSize& size)
 {
     std::set<QRgb> colors;
     int opaque = 0;
@@ -34,7 +35,7 @@ static bool checkImage(const QImage& image, bool low, const QSize& size)
     }
     const bool passed = image.size() == size && colors.size() > 16 &&
         opaque > image.width() * image.height() / 2;
-    std::printf("%s low=%d size=%dx%d colors=%zu visible_pixels=%d\n",
+    std::printf("%s nonblank capture low=%d size=%dx%d colors=%zu visible_pixels=%d\n",
                 passed ? "PASS" : "FAIL", low, size.width(), size.height(),
                 colors.size(), opaque);
     return passed;
@@ -50,7 +51,52 @@ static bool checkCapture(GLWidget& view, bool low, const QSize& size)
         QDir().mkpath(artifacts);
         image.save(artifacts + QString("/snapshot-%1-%2x%3.png").arg(low ? "low" : "normal").arg(size.width()).arg(size.height()));
     }
-    return checkImage(image, low, size);
+    return checkNonblankImage(image, low, size);
+}
+
+static bool checkTexturedCylinderDetail(GLWidget& view)
+{
+    QGLWidget context;
+    context.makeCurrent();
+    if (!context.isValid()) return false;
+    const auto scene = view.scene();
+    SceneRenderer renderer(&context);
+    renderer.initialize(*scene);
+    renderer.graphics.setViewpoint(0, -1, 0.5, 90, -20, 0);
+    bool passed = true;
+    for (bool chassis : {false, true}) {
+        SceneSnapshot fixture = *scene;
+        fixture.primitives.clear();
+        for (const auto& primitive : scene->primitives) {
+            if (primitive.kind == PrimitiveKind::Cylinder && primitive.texture >= 0 &&
+                primitive.robotChassis == chassis) {
+                fixture.primitives.push_back(primitive);
+                break;
+            }
+        }
+        if (fixture.primitives.empty()) return false;
+        auto& cylinder = fixture.primitives.front();
+        cylinder.position = {{0, 0, 0}};
+        cylinder.rotation = {{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}};
+        cylinder.dimensions = {{0.2, 0.3, 0}};
+        cylinder.visible = true;
+        auto vertices = [&](bool low) {
+            GLfloat feedback[16384];
+            glFeedbackBuffer(16384, GL_3D, feedback);
+            glRenderMode(GL_FEEDBACK);
+            auto quality = RenderQuality::forLowSpec(low);
+            quality.showSkybox = false;
+            renderer.draw(fixture, 512, 512, quality, -1, false, {{0, 0, 0}}, 0);
+            return glRenderMode(GL_RENDER);
+        };
+        const int normal = vertices(false), low = vertices(true), repeated = vertices(true);
+        const bool reduced = normal > 0 && low > 0 && low < normal && repeated == low;
+        std::printf("%s textured %s geometry low=%d normal=%d feedback values\n",
+                    reduced ? "PASS" : "FAIL", chassis ? "chassis" : "wheel", low, normal);
+        passed = reduced && passed;
+    }
+    renderer.graphics.clearTextures();
+    return passed;
 }
 
 static bool checkPicking(TestView& view)
@@ -169,6 +215,7 @@ int main(int argc, char** argv)
     std::printf("OpenGL renderer: %s; display scale: %.1f\n", glGetString(GL_RENDERER), view->devicePixelRatioF());
     if (qgetenv("QT_SCALE_FACTOR") == "2" && view->devicePixelRatioF() < 1.9) return 2;
     bool passed = true;
+    passed = checkTexturedCylinderDetail(*view) && passed;
     for (const QSize size : {QSize(512, 512), QSize(320, 240)}) {
         passed = checkCapture(*view, false, size) && passed;
         passed = checkCapture(*view, true, size) && passed;
@@ -182,7 +229,7 @@ int main(int argc, char** argv)
         config->v_LowSpecMode->setBool(true);
         fallback.updateGL();
         const QImage displayed = fallback.grabFrameBuffer();
-        passed = checkImage(displayed, true, displayed.size()) && passed;
+        passed = checkNonblankImage(displayed, true, displayed.size()) && passed;
         passed = checkNoBlitUpdates(fallback) && passed;
         passed = checkCapture(fallback, true, QSize(320, 240)) && passed;
         passed = checkPicking(fallback) && passed;
@@ -211,7 +258,7 @@ int main(int argc, char** argv)
         const bool restored = GLuint(binding) == target.handle() && viewport[2] == 377 && viewport[3] == 211;
         std::printf("%s capture framebuffer and viewport preserved\n", restored ? "PASS" : "FAIL");
         passed = restored && passed;
-        passed = checkImage(target.toImage(), true, QSize(377, 211)) && passed;
+        passed = checkNonblankImage(target.toImage(), true, QSize(377, 211)) && passed;
         target.release();
     }
     delete window;
