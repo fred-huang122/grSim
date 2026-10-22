@@ -9,12 +9,12 @@
 class PChassisCollision : public PObject
 {
 public:
-    PChassisCollision(dBodyID chassisBody, dReal radius, dReal height);
+    PChassisCollision(dBodyID chassisBody, dReal radius, dReal height, dReal dribblerDistance);
     ~PChassisCollision() override;
     void init() override;
 private:
     dBodyID chassisBody;
-    dReal radius, height;
+    dReal radius, height, dribblerDistance;
     // ODE retains these arrays for the lifetime of the convex geom.
     std::vector<dReal> planes, points;
     std::vector<unsigned int> polygons;

@@ -75,8 +75,9 @@ Configuration tests delay GUI notifications while remote robot specifications
 and GUI edits interleave, including queued preset selections.
 Collision tests check side and rear ball contact, dribbler access, roller
 retention while stationary and moving, and flat/chip kicks for separate team
-sizes and rotated robots. Ball contact uses a fixed chassis hull with a front
-cutout; render quality does not change the physical shape.
+sizes and rotated robots, including ball acquisition with recessed dribblers.
+The ball-contact hull keeps the body outline and cuts its front back when needed
+to reach the configured dribbler. Render quality does not change this shape.
 Tests use temporary configuration values without reading or writing personal
 simulator settings. In the configuration tree, **Desired FPS** caps rendering and
 **ODE time step** sets the fixed physics step; their names remain stable for saved

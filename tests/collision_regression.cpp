@@ -23,6 +23,9 @@ static void placeBall(SSLWorld& world, double x, double y, double z)
 
 static bool checkRobot(SimulationSettings settings, int team, double heading)
 {
+    const auto& teamSettings = team ? settings.yellowSettings : settings.blueSettings;
+    std::printf("CHECK team=%d heading=%.0f radius=%.1fmm dribbler=%.1fmm\n", team, heading,
+                teamSettings.RobotRadius*1000, teamSettings.RobotCenterFromKicker*1000);
     RobotsFormation formation(FORMATION_INSIDE_1, &settings);
     SSLWorld world(nullptr, &settings, &formation, &formation);
     auto* robot = world.robots[team];
@@ -118,6 +121,25 @@ static bool checkRobot(SimulationSettings settings, int team, double heading)
     const auto* chip = dBodyGetLinearVel(world.ball->body);
     passed = check(chip[0]*x+chip[1]*y > 2.5 && chip[2] > 2.5,
                    "front cutout preserves chip kicks") && passed;
+
+    const auto* chassis = dBodyGetPosition(robot->chassis->body);
+    const double approach = radius + ballRadius + 0.03;
+    placeBall(world, chassis[0]+x*approach, chassis[1]+y*approach, ballRadius);
+    dBodySetLinearVel(world.ball->body, -0.6*x, -0.6*y, 0);
+    robot->kicker->setRoller(1);
+    bool acquired = false;
+    for (int i = 0; i < 120 && !acquired; ++i) {
+        world.p->step(1.0/300.0);
+        robot->kicker->step();
+        acquired = dAreConnected(robot->kicker->box->body, world.ball->body);
+    }
+    passed = check(acquired && robot->kicker->isTouchingBall(),
+                   "dribbler acquires a ball approaching from outside the chassis") && passed;
+    robot->kicker->kick(3, 0);
+    const auto* acquiredKick = dBodyGetLinearVel(world.ball->body);
+    passed = check(acquired && !dAreConnected(robot->kicker->box->body, world.ball->body) &&
+                   acquiredKick[0]*x+acquiredKick[1]*y > 2.5,
+                   "dribbler can kick the ball acquired through the hull opening") && passed;
     return passed;
 }
 
@@ -136,6 +158,13 @@ int main(int argc, char** argv)
     for (int team : {0, 1})
         for (double heading : {0.0, 90.0})
             passed = checkRobot(settings, team, heading) && passed;
+    settings.blueSettings.RobotRadius = 0.09;
+    // Include a cut between vertices and one at the original 60-degree vertex.
+    for (double distance : {0.04, 0.045}) {
+        settings.blueSettings.RobotCenterFromKicker = distance;
+        for (double heading : {0.0, 90.0})
+            passed = checkRobot(settings, 0, heading) && passed;
+    }
     dCloseODE();
     return passed ? 0 : 1;
 }
