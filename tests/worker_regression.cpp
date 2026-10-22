@@ -210,6 +210,37 @@ int main(int argc, char** argv)
     config->v_Robots_Count->setInt(2);
     window->changeRobotCount();
     passed = check(waitFor([&]() { return controller->latest()->robots.size() == 4; }), "robot-count reset") && passed;
+    window->updateUI();
+    passed = check(panel->robotCombo->currentIndex() == 0 && view->Current_robot == 0,
+                   "increasing the count from zero restores robot zero in the selector and view") && passed;
+    for (int team : {0, 1}) {
+        panel->teamCombo->setCurrentIndex(team);
+        window->updateUI();
+        const int index = team * 2;
+        passed = check(panel->robotCombo->currentIndex() == 0 && panel->id == index,
+                       "team switching preserves the restored robot selection") && passed;
+        view->switchRobotOnOff();
+        passed = check(waitFor([&]() { return !controller->latest()->robots[index].on; }),
+                       "restored selection can turn the selected team robot off") && passed;
+        window->updateUI();
+        passed = check(panel->onOffBtn->text() == "Turn on",
+                       "restored selection updates the robot panel button") && passed;
+        const double x = team ? -1.2 : 1.2;
+        panel->getPoseWidget->x->setText(QString::number(x));
+        panel->getPoseWidget->y->setText("0.4");
+        panel->getPoseWidget->a->setText("30");
+        window->setCurrentRobotPosition();
+        passed = check(waitFor([&]() {
+            const auto robot = controller->latest()->robots[index];
+            return std::abs(robot.x-x) < 0.01 && std::abs(robot.y-0.4) < 0.01 &&
+                std::abs(robot.direction-30) < 1;
+        }), "restored selection can set the selected robot's pose") && passed;
+        view->resetCurrentRobot();
+        passed = check(waitFor([&]() {
+            const auto robot = controller->latest()->robots[index];
+            return std::abs(std::remainder(robot.direction-(team ? 180 : 0), 360)) < 1;
+        }), "restored selection can reset the selected robot") && passed;
+    }
     config->v_Robots_Count->setInt(1);
     window->changeRobotCount();
     waitFor([&]() { return controller->latest()->robots.size() == 2; });

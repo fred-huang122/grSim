@@ -262,7 +262,7 @@ void MainWindow::changeRobotCount()
 
     robotwidget->changeRobotCount(newRobotCount);
     
-    int newCurrentRobot = std::min(newRobotCount - 1, glwidget->Current_robot);
+    const int newCurrentRobot = newRobotCount ? qBound(0, glwidget->Current_robot, newRobotCount - 1) : -1;
     robotwidget->changeCurrentRobot(newCurrentRobot);
     restartSimulator();
     changeCurrentRobot();
