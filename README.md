@@ -48,6 +48,22 @@ Sending data to the simulator is also possible using Google Protobuf. Sample cli
 
 Qt [example project](https://github.com/robocin/ssl-client) to receive and send data to the simulator.
 
+Physics and command handling run independently of the display. The render FPS cap
+does not change the configured physics timestep. If physics cannot keep up with
+real time, a small amber **Lag** warning appears in the top-right corner of the
+view. The simulator retains pending physics steps and gives them priority over
+rendering. The warning clears after it catches up.
+
+Regression tests
+----------------
+
+Build the tests with `cmake -S . -B build -DBUILD_TESTING=ON`, then
+`cmake --build build`. Run `ctest --output-on-failure` from the build directory.
+The timing tests use loopback UDP and an independent observer process. Rendering
+tests need a working OpenGL display; Linux CI uses Mesa and
+`xvfb-run -a ctest --output-on-failure`. Tests use temporary configuration values without reading
+or writing personal simulator settings.
+
 Star History
 ------
 [![Star History Chart](https://api.star-history.com/svg?repos=robocup-ssl/grsim&type=Date)](https://star-history.com/#robocup-ssl/grsim&Date)
